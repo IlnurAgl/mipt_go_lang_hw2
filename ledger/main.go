@@ -9,12 +9,26 @@ import (
 	"os"
 )
 
+type Validatable interface {
+	Validate() error
+}
+
 type Transaction struct {
 	ID          int64
 	Amount      float64
 	Category    string
 	Description string
 	Date        string
+}
+
+func (tx *Transaction) Validate() error {
+	if tx.Amount <= 0 {
+		return errors.New("invalid amount")
+	}
+	if tx.Category == "" {
+		return errors.New("invalid category")
+	}
+	return nil
 }
 
 var transactions []Transaction
@@ -27,9 +41,21 @@ type Budget struct {
 	Period   string  `json:"period"`
 }
 
+func (budget *Budget) Validate() error {
+	if budget.Limit <= 0 {
+		return errors.New("invalid limit")
+	}
+	if budget.Category == "" {
+		return errors.New("invalid category")
+	}
+	return nil
+}
+
 func AddTransaction(transaction Transaction) error {
-	if transaction.Amount == 0 {
-		return errors.New("invalid amount")
+	err := transaction.Validate()
+	if err != nil {
+		println(err.Error())
+		return err
 	}
 	var sum float64 = 0
 	for _, tr := range transactions {
@@ -48,8 +74,13 @@ func ListTransactions() []Transaction {
 	return transactions
 }
 
-func SetBudget(b Budget) {
+func SetBudget(b Budget) error {
+	err := b.Validate()
+	if err != nil {
+		return err
+	}
 	budgets[b.Category] = b
+	return nil
 }
 
 func LoadBudgets(r io.Reader) error {
@@ -65,9 +96,16 @@ func LoadBudgets(r io.Reader) error {
 
 	// Добавляем каждый бюджет через SetBudget
 	for _, budget := range budgetList {
-		SetBudget(budget)
+		err := SetBudget(budget)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func CheckValid(v Validatable) error {
+	return v.Validate()
 }
 
 func main() {
@@ -88,8 +126,16 @@ func main() {
 	if err != nil {
 		return
 	}
-	SetBudget(Budget{Limit: 5000, Period: "monthly", Category: "еда"})
-	SetBudget(Budget{Limit: 2000, Period: "monthly", Category: "транспорт"})
+	t := Transaction{ID: 1, Amount: 3000}
+	err = CheckValid(&t)
+	if err != nil {
+		println(err.Error())
+	}
+	b := Budget{Limit: 0}
+	err = CheckValid(&b)
+	if err != nil {
+		println(err.Error())
+	}
 
 	err = AddTransaction(Transaction{ID: 1, Amount: 3000, Category: "еда", Description: "test", Date: "2025-10-07T23:59:59"})
 	if err != nil {
