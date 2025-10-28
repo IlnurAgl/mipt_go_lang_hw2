@@ -1,13 +1,14 @@
-package main
+package ledger
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"sync"
 )
+
+var mu sync.Mutex
 
 type Validatable interface {
 	Validate() error
@@ -34,11 +35,11 @@ func (tx *Transaction) Validate() error {
 var transactions []Transaction
 
 var budgets map[string]Budget
+var transactionId int64
 
 type Budget struct {
 	Category string  `json:"category"`
 	Limit    float64 `json:"limit"`
-	Period   string  `json:"period"`
 }
 
 func (budget *Budget) Validate() error {
@@ -75,12 +76,19 @@ func ListTransactions() []Transaction {
 }
 
 func SetBudget(b Budget) error {
+	if budgets == nil {
+		budgets = make(map[string]Budget)
+	}
 	err := b.Validate()
 	if err != nil {
 		return err
 	}
 	budgets[b.Category] = b
 	return nil
+}
+
+func ListBudgets() map[string]Budget {
+	return budgets
 }
 
 func LoadBudgets(r io.Reader) error {
@@ -108,48 +116,57 @@ func CheckValid(v Validatable) error {
 	return v.Validate()
 }
 
-func main() {
-	file, err := os.Open("budgets.json")
-	if err != nil {
-		println(fmt.Errorf("ошибка открытия файла: %w", err))
-		return
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			return
-		}
-	}(file)
-	reader := bufio.NewReader(file)
-	budgets = make(map[string]Budget)
-	err = LoadBudgets(reader)
-	if err != nil {
-		return
-	}
-	t := Transaction{ID: 1, Amount: 3000}
-	err = CheckValid(&t)
-	if err != nil {
-		println(err.Error())
-	}
-	b := Budget{Limit: 0}
-	err = CheckValid(&b)
-	if err != nil {
-		println(err.Error())
-	}
-
-	err = AddTransaction(Transaction{ID: 1, Amount: 3000, Category: "еда", Description: "test", Date: "2025-10-07T23:59:59"})
-	if err != nil {
-		fmt.Println(err)
-	}
-	err = AddTransaction(Transaction{ID: 2, Amount: 4000, Category: "еда", Description: "test", Date: "2025-10-07T23:59:59"})
-	if err != nil {
-		fmt.Println(err)
-	}
-	err = AddTransaction(Transaction{ID: 3, Amount: 1500, Category: "транспорт", Description: "test", Date: "2025-10-07T23:59:59"})
-	if err != nil {
-		fmt.Println(err)
-	}
-	for _, transaction := range ListTransactions() {
-		fmt.Println(transaction)
-	}
+func GetTransactionId() int64 {
+	mu.Lock()
+	transactionId++
+	mu.Unlock()
+	return transactionId
 }
+
+//func ReadBudget() {
+//	transactionId = 0
+//	file, err := os.Open("ledger/budgets.json")
+//	if err != nil {
+//		println(fmt.Errorf("ошибка открытия файла: %w", err))
+//		return
+//	}
+//	defer func(file *os.File) {
+//		err := file.Close()
+//		if err != nil {
+//			return
+//		}
+//	}(file)
+//	reader := bufio.NewReader(file)
+//	budgets = make(map[string]Budget)
+//	err = LoadBudgets(reader)
+//	if err != nil {
+//		println("Some error")
+//		return
+//	}
+//t := Transaction{ID: 1, Amount: 3000}
+//err = CheckValid(&t)
+//if err != nil {
+//	println(err.Error())
+//}
+//b := Budget{Limit: 0}
+//err = CheckValid(&b)
+//if err != nil {
+//	println(err.Error())
+//}
+
+//err = AddTransaction(Transaction{ID: 1, Amount: 3000, Category: "еда", Description: "test", Date: "2025-10-07T23:59:59"})
+//if err != nil {
+//	fmt.Println(err)
+//}
+//err = AddTransaction(Transaction{ID: 2, Amount: 4000, Category: "еда", Description: "test", Date: "2025-10-07T23:59:59"})
+//if err != nil {
+//	fmt.Println(err)
+//}
+//err = AddTransaction(Transaction{ID: 3, Amount: 1500, Category: "транспорт", Description: "test", Date: "2025-10-07T23:59:59"})
+//if err != nil {
+//	fmt.Println(err)
+//}
+//for _, transaction := range ListTransactions() {
+//	fmt.Println(transaction)
+//}
+//}

@@ -1,12 +1,10 @@
 [
   {
     "category": "еда",
-    "limit": 5000,
-    "period": "monthly"
+    "limit": 5000
   },
   {
     "category": "транспорт",
-    "limit": 2000,
-    "period": "monthly"
+    "limit": 2000
   }
 ]

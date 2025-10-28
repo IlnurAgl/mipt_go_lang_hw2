@@ -1,24 +1,153 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"gateway/internal"
 	"io"
+	"ledger"
+	"log"
 	"net/http"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
 func ping(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("got /ping request\n")
 	_, err := io.WriteString(w, "pong")
 	if err != nil {
 		return
 	}
 }
 
-func main() {
-	http.HandleFunc("/ping", ping)
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("Request received: %s %s\n", r.Method, r.URL.Path)
+		t := time.Now()
+		next.ServeHTTP(w, r)
+		fmt.Printf("Request handled: %s %s, time: %s\n", r.Method, r.URL.Path, time.Since(t))
+	})
+}
 
-	err := http.ListenAndServe("0.0.0.0:8080", nil)
-	if err != nil {
-		fmt.Printf("Error starting server: %s\n", err)
+func transactionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		var transaction internal.CreateTransactionRequest
+		err := json.NewDecoder(r.Body).Decode(&transaction)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, err := w.Write([]byte(err.Error()))
+			if err != nil {
+				return
+			}
+			return
+		}
+		response, err := internal.CreateTransaction(transaction)
+		if err != nil {
+			switch err.Error() {
+			case "invalid transaction":
+				w.WriteHeader(http.StatusBadRequest)
+				_, err := w.Write([]byte(err.Error()))
+				if err != nil {
+					return
+				}
+				return
+			case "budget exceeded":
+				w.WriteHeader(http.StatusConflict)
+				err := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				if err != nil {
+					return
+				}
+				return
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		err = json.NewEncoder(w).Encode(response)
+		if err != nil {
+			return
+		}
+		return
 	}
+	if r.Method == "GET" {
+		trs := make([]internal.TransactionResponse, 0)
+		for _, tr := range ledger.ListTransactions() {
+			trs = append(trs, internal.TransactionResponse{
+				ID:       tr.ID,
+				Amount:   tr.Amount,
+				Date:     tr.Date,
+				Category: tr.Category,
+			})
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		err := json.NewEncoder(w).Encode(trs)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func budgetHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		budgets := make([]internal.BudgetResponse, 0)
+		for _, budget := range ledger.ListBudgets() {
+			budgets = append(budgets, internal.BudgetResponse{
+				Category: budget.Category,
+				Limit:    budget.Limit,
+			})
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		err := json.NewEncoder(w).Encode(budgets)
+		if err != nil {
+			return
+		}
+	}
+	if r.Method == "POST" {
+		var budget internal.CreateBudgetRequest
+		err := json.NewDecoder(r.Body).Decode(&budget)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, err := w.Write([]byte(err.Error()))
+			if err != nil {
+				return
+			}
+			return
+		}
+		response, err := internal.CreateBudget(budget)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte(err.Error()))
+			if err != nil {
+				return
+			}
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		err = json.NewEncoder(w).Encode(response)
+		if err != nil {
+			return
+		}
+		return
+	}
+}
+
+func main() {
+	r := mux.NewRouter()
+	r.Use(loggingMiddleware)
+	r.HandleFunc("/ping", ping)
+	r.HandleFunc("/api/transaction", transactionHandler)
+	r.HandleFunc("/api/budget", budgetHandler)
+
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
