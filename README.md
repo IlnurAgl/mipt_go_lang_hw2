@@ -21,3 +21,11 @@ curl -X POST "127.0.0.1:8080/api/transaction" -d '{"amount": 2, "category": "tes
  curl -X GET "127.0.0.1:8080/api/transaction"                                                                                            
 [{"id":1,"amount":2,"category":"test","description":"","date":"2025-10-28"}]
 ```
+
+## Тесты
+```
+go test ./... -cover -coverprofile=cover.out
+go tool cover -html=cover.out -o cover.html
+```
+ledger 55.6%
+gateway/main 54.5%

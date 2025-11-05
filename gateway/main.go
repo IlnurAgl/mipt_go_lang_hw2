@@ -35,7 +35,7 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 		err := json.NewDecoder(r.Body).Decode(&transaction)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			_, err := w.Write([]byte(err.Error()))
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			if err != nil {
 				return
 			}
@@ -46,7 +46,7 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 			switch err.Error() {
 			case "invalid transaction":
 				w.WriteHeader(http.StatusBadRequest)
-				_, err := w.Write([]byte(err.Error()))
+				err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 				if err != nil {
 					return
 				}
@@ -60,6 +60,10 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			default:
 				w.WriteHeader(http.StatusInternalServerError)
+				err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				if err != nil {
+					return
+				}
 				return
 			}
 		}
@@ -77,10 +81,11 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 		trs := make([]internal.TransactionResponse, 0)
 		for _, tr := range ledger.ListTransactions() {
 			trs = append(trs, internal.TransactionResponse{
-				ID:       tr.ID,
-				Amount:   tr.Amount,
-				Date:     tr.Date,
-				Category: tr.Category,
+				ID:          tr.ID,
+				Amount:      tr.Amount,
+				Date:        tr.Date,
+				Category:    tr.Category,
+				Description: tr.Description,
 			})
 		}
 
@@ -115,25 +120,35 @@ func budgetHandler(w http.ResponseWriter, r *http.Request) {
 		var budget internal.CreateBudgetRequest
 		err := json.NewDecoder(r.Body).Decode(&budget)
 		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("charset", "UTF-8")
 			w.WriteHeader(http.StatusBadRequest)
-			_, err := w.Write([]byte(err.Error()))
+			_, err := w.Write([]byte("{\"error\": \"invalid json\"}"))
 			if err != nil {
 				return
 			}
 			return
 		}
 		response, err := internal.CreateBudget(budget)
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		if err != nil && err.Error() == "invalid limit" {
+			w.WriteHeader(http.StatusBadRequest)
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			if err != nil {
+				return
+			}
+			return
+		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, err := w.Write([]byte(err.Error()))
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			if err != nil {
 				return
 			}
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("charset", "UTF-8")
 		err = json.NewEncoder(w).Encode(response)
 		if err != nil {
 			return

@@ -1,10 +1,12 @@
 package ledger
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 )
 
@@ -116,6 +118,10 @@ func CheckValid(v Validatable) error {
 	return v.Validate()
 }
 
+func Reset() {
+	transactions = []Transaction{}
+}
+
 func GetTransactionId() int64 {
 	mu.Lock()
 	transactionId++
@@ -123,26 +129,28 @@ func GetTransactionId() int64 {
 	return transactionId
 }
 
-//func ReadBudget() {
-//	transactionId = 0
-//	file, err := os.Open("ledger/budgets.json")
-//	if err != nil {
-//		println(fmt.Errorf("ошибка открытия файла: %w", err))
-//		return
-//	}
-//	defer func(file *os.File) {
-//		err := file.Close()
-//		if err != nil {
-//			return
-//		}
-//	}(file)
-//	reader := bufio.NewReader(file)
-//	budgets = make(map[string]Budget)
-//	err = LoadBudgets(reader)
-//	if err != nil {
-//		println("Some error")
-//		return
-//	}
+func ReadBudget() {
+	transactionId = 0
+	file, err := os.Open("ledger/budgets.json")
+	if err != nil {
+		println(fmt.Errorf("ошибка открытия файла: %w", err))
+		return
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			return
+		}
+	}(file)
+	reader := bufio.NewReader(file)
+	budgets = make(map[string]Budget)
+	err = LoadBudgets(reader)
+	if err != nil {
+		println("Some error")
+		return
+	}
+}
+
 //t := Transaction{ID: 1, Amount: 3000}
 //err = CheckValid(&t)
 //if err != nil {
