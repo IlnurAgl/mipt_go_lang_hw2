@@ -79,7 +79,18 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" {
 		trs := make([]internal.TransactionResponse, 0)
-		for _, tr := range ledger.ListTransactions() {
+		dbTrs, err := ledger.ListTransactions()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("charset", "UTF-8")
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			if err != nil {
+				return
+			}
+			return
+		}
+		for _, tr := range dbTrs {
 			trs = append(trs, internal.TransactionResponse{
 				ID:          tr.ID,
 				Amount:      tr.Amount,
@@ -92,7 +103,7 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("charset", "UTF-8")
-		err := json.NewEncoder(w).Encode(trs)
+		err = json.NewEncoder(w).Encode(trs)
 		if err != nil {
 			return
 		}
@@ -101,17 +112,22 @@ func transactionHandler(w http.ResponseWriter, r *http.Request) {
 
 func budgetHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
 		budgets := make([]internal.BudgetResponse, 0)
-		for _, budget := range ledger.ListBudgets() {
+		response, err := ledger.ListBudgets()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		}
+		for _, budget := range response {
 			budgets = append(budgets, internal.BudgetResponse{
 				Category: budget.Category,
 				Limit:    budget.Limit,
 			})
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("charset", "UTF-8")
-		err := json.NewEncoder(w).Encode(budgets)
+		err = json.NewEncoder(w).Encode(budgets)
 		if err != nil {
 			return
 		}
@@ -157,12 +173,48 @@ func budgetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type Report struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+func reportHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("charset", "UTF-8")
+		var report Report
+		err := json.NewDecoder(r.Body).Decode(&report)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		}
+		summary, err := ledger.GetReportSummary(report.From, report.To)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		err = json.NewEncoder(w).Encode(summary)
+		if err != nil {
+			return
+		}
+		return
+	}
+}
+
 func main() {
+	err := ledger.InitConnection()
+	if err != nil {
+		println(err.Error())
+		return
+	}
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
 	r.HandleFunc("/ping", ping)
 	r.HandleFunc("/api/transaction", transactionHandler)
 	r.HandleFunc("/api/budget", budgetHandler)
+	r.HandleFunc("/api/reports/summary", reportHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

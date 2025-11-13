@@ -31,9 +31,7 @@ type BudgetResponse struct {
 }
 
 func CreateTransaction(r CreateTransactionRequest) (*TransactionResponse, error) {
-	id := ledger.GetTransactionId()
 	tr := ledger.Transaction{
-		ID:          id,
 		Amount:      r.Amount,
 		Category:    r.Category,
 		Description: r.Description,
@@ -43,7 +41,7 @@ func CreateTransaction(r CreateTransactionRequest) (*TransactionResponse, error)
 	if err != nil {
 		return nil, errors.New("invalid transaction")
 	}
-	err = ledger.AddTransaction(tr)
+	id, err := ledger.AddTransaction(tr)
 	if err != nil {
 		return nil, err
 	}
