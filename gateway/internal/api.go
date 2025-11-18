@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"errors"
 	"ledger"
 )
 
@@ -30,18 +29,8 @@ type BudgetResponse struct {
 	Limit    float64
 }
 
-func CreateTransaction(r CreateTransactionRequest) (*TransactionResponse, error) {
-	tr := ledger.Transaction{
-		Amount:      r.Amount,
-		Category:    r.Category,
-		Description: r.Description,
-		Date:        r.Date,
-	}
-	err := tr.Validate()
-	if err != nil {
-		return nil, errors.New("invalid transaction")
-	}
-	id, err := ledger.AddTransaction(tr)
+func CreateTransaction(s ledger.LedgerService, r CreateTransactionRequest) (*TransactionResponse, error) {
+	id, err := s.AddTransaction(r.Amount, r.Category, r.Description, r.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +43,11 @@ func CreateTransaction(r CreateTransactionRequest) (*TransactionResponse, error)
 	}, nil
 }
 
-func CreateBudget(r CreateBudgetRequest) (*BudgetResponse, error) {
-	err := ledger.SetBudget(ledger.Budget{
-		Category: r.Category,
-		Limit:    r.Limit,
-	})
+func CreateBudget(s ledger.LedgerService, r CreateBudgetRequest) (*BudgetResponse, error) {
+	err := s.SetBudget(
+		r.Category,
+		r.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

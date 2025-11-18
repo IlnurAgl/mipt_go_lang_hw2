@@ -2,8 +2,9 @@ package db
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
 	"os"
+
+	_ "github.com/lib/pq"
 )
 
 func Connect() (*sql.DB, error) {
@@ -20,11 +21,4 @@ func Connect() (*sql.DB, error) {
 	}
 	println("Connected to database")
 	return db, nil
-}
-
-func Close(db *sql.DB) {
-	err := db.Close()
-	if err != nil {
-		return
-	}
 }
