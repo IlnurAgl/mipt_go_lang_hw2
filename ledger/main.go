@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"ledger/internal/db"
 	"ledger/internal/domain"
 	"ledger/internal/repository/pg"
@@ -8,10 +9,11 @@ import (
 )
 
 type LedgerService interface {
-	SetBudget(category string, limit float64) error
-	GetBudgets() (map[string]domain.Budget, error)
-	AddTransaction(Amount float64, Category string, Description string, Date string) (int64, error)
-	ListTransactions() ([]domain.Transaction, error)
+	SetBudget(category string, limit float64, ctx context.Context) error
+	GetBudgets(ctx context.Context) (map[string]domain.Budget, error)
+	AddTransaction(Amount float64, Category string, Description string, Date string, ctx context.Context) (int64, error)
+	ListTransactions(ctx context.Context) ([]domain.Transaction, error)
+	GetReportSummary(from string, to string, ctx context.Context) (*domain.Summary, error)
 }
 
 func NewLedgerService() (LedgerService, func(), error) {
@@ -28,6 +30,7 @@ func NewLedgerService() (LedgerService, func(), error) {
 	return &service.LedgerServiceImpl{
 			pg.NewBudgetPgRepository(dbConn),
 			pg.NewTransactionPgRepository(dbConn),
+			pg.NewSummaryPgRepository(dbConn),
 		},
 		closeFunc,
 		nil

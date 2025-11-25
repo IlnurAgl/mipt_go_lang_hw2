@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"gateway/internal"
@@ -29,6 +30,34 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func contextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFn := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancelFn()
+		r = r.WithContext(ctx)
+		done := make(chan struct{})
+
+		go func() {
+			next.ServeHTTP(w, r)
+			close(done)
+		}()
+		select {
+		case <-done:
+			return
+		case <-ctx.Done():
+			if ctx.Err() == context.DeadlineExceeded {
+				w.WriteHeader(http.StatusGatewayTimeout)
+				fmt.Printf("Request timed out")
+				err := json.NewEncoder(w).Encode(map[string]string{"error": "Request timed out"})
+				if err != nil {
+					return
+				}
+			}
+			return
+		}
+	})
+}
+
 func transactionHandler(service ledger.LedgerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
@@ -42,7 +71,7 @@ func transactionHandler(service ledger.LedgerService) http.HandlerFunc {
 				}
 				return
 			}
-			response, err := internal.CreateTransaction(service, transaction)
+			response, err := internal.CreateTransaction(service, transaction, r.Context())
 			if err != nil {
 				switch err.Error() {
 				case "invalid transaction":
@@ -80,7 +109,7 @@ func transactionHandler(service ledger.LedgerService) http.HandlerFunc {
 		}
 		if r.Method == "GET" {
 			trs := make([]internal.TransactionResponse, 0)
-			dbTrs, err := service.ListTransactions()
+			dbTrs, err := service.ListTransactions(r.Context())
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Header().Set("Content-Type", "application/json")
@@ -118,7 +147,7 @@ func budgetHandler(service ledger.LedgerService) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("charset", "UTF-8")
 			budgets := make([]internal.BudgetResponse, 0)
-			response, err := service.GetBudgets()
+			response, err := service.GetBudgets(r.Context())
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -148,7 +177,7 @@ func budgetHandler(service ledger.LedgerService) http.HandlerFunc {
 				}
 				return
 			}
-			response, err := internal.CreateBudget(service, budget)
+			response, err := internal.CreateBudget(service, budget, r.Context())
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("charset", "UTF-8")
 			if err != nil && err.Error() == "invalid limit" {
@@ -182,44 +211,67 @@ type Report struct {
 	To   string `json:"to"`
 }
 
-//func reportHandler(w http.ResponseWriter, r *http.Request) {
-//	if r.Method == "POST" {
-//		w.Header().Set("Content-Type", "application/json")
-//		w.Header().Set("charset", "UTF-8")
-//		var report Report
-//		err := json.NewDecoder(r.Body).Decode(&report)
-//		if err != nil {
-//			w.WriteHeader(http.StatusBadRequest)
-//			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-//		}
-//		summary, err := ledger.GetReportSummary(report.From, report.To)
-//		if err != nil {
-//			w.WriteHeader(http.StatusInternalServerError)
-//			err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-//			return
-//		}
-//		w.WriteHeader(http.StatusOK)
-//		err = json.NewEncoder(w).Encode(summary)
-//		if err != nil {
-//			return
-//		}
-//		return
-//	}
-//}
+func isValidDate(dateString string) bool {
+	layout := "2006-01-02"
+	_, err := time.Parse(layout, dateString)
+	return err == nil
+}
+
+func reportHandler(service ledger.LedgerService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("charset", "UTF-8")
+			queryParams := r.URL.Query()
+			from := queryParams.Get("from")
+			validFrom := isValidDate(from)
+			to := queryParams.Get("to")
+			validTo := isValidDate(to)
+			if !validFrom || !validTo {
+				w.WriteHeader(http.StatusBadRequest)
+				var s string
+				if !validFrom {
+					s = "Invalid from"
+				} else {
+					s = "Invalid to"
+				}
+				err := json.NewEncoder(w).Encode(map[string]string{"error": s})
+				if err != nil {
+					return
+				}
+				return
+			}
+			summary, err := service.GetReportSummary(from, to, r.Context())
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				err = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			err = json.NewEncoder(w).Encode(summary)
+			if err != nil {
+				return
+			}
+			return
+		}
+	}
+}
 
 func main() {
 	service, closeFn, err := ledger.NewLedgerService()
 	defer closeFn()
 	if err != nil {
+		println(err.Error())
 		return
 	}
 
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
+	r.Use(contextMiddleware)
 	r.HandleFunc("/ping", ping)
 	r.HandleFunc("/api/transaction", transactionHandler(service))
 	r.HandleFunc("/api/budget", budgetHandler(service))
-	//r.HandleFunc("/api/reports/summary", reportHandler)
+	r.HandleFunc("/api/reports/summary", reportHandler(service))
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

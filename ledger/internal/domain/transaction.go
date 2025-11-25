@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type Transaction struct {
 	ID          int64
@@ -21,7 +24,7 @@ func (tx *Transaction) Validate() error {
 }
 
 type TransactionRepository interface {
-	AddTransaction(transaction *Transaction) (int64, error)
-	ListTransactions() ([]Transaction, error)
-	GetAmountTransactionByCategory(category string) (float64, error)
+	AddTransaction(transaction *Transaction, ctx context.Context) (int64, error)
+	ListTransactions(ctx context.Context) ([]Transaction, error)
+	GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error)
 }

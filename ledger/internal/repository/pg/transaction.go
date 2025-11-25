@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"context"
 	"database/sql"
 	"ledger/internal/domain"
 )
@@ -15,26 +16,26 @@ func NewTransactionPgRepository(db *sql.DB) *TransactionPgRepository {
 	}
 }
 
-func (r *TransactionPgRepository) GetAmountTransactionByCategory(category string) (float64, error) {
+func (r *TransactionPgRepository) GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error) {
 	var totalAmount float64
-	err := r.db.QueryRow("SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1", category).Scan(&totalAmount)
+	err := r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1", category).Scan(&totalAmount)
 	if err != nil {
 		return 0, err
 	}
 	return totalAmount, nil
 }
 
-func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction) (int64, error) {
+func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction, ctx context.Context) (int64, error) {
 	var newID int64
-	err := r.db.QueryRow("INSERT INTO expenses(amount, category, description, date) VALUES($1,$2,$3,$4) RETURNING id", transaction.Amount, transaction.Category, transaction.Description, transaction.Date).Scan(&newID)
+	err := r.db.QueryRowContext(ctx, "INSERT INTO expenses(amount, category, description, date) VALUES($1,$2,$3,$4) RETURNING id", transaction.Amount, transaction.Category, transaction.Description, transaction.Date).Scan(&newID)
 	if err != nil {
 		return 0, err
 	}
 	return newID, nil
 }
 
-func (r *TransactionPgRepository) ListTransactions() ([]domain.Transaction, error) {
-	rows, err := r.db.Query("SELECT id, amount, category, description, date FROM expenses ORDER BY date DESC, id DESC")
+func (r *TransactionPgRepository) ListTransactions(ctx context.Context) ([]domain.Transaction, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT id, amount, category, description, date FROM expenses ORDER BY date DESC, id DESC")
 	if err != nil {
 		return nil, err
 	}

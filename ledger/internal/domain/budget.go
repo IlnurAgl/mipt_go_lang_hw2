@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type Budget struct {
 	Category string  `json:"category"`
@@ -18,7 +21,7 @@ func (budget *Budget) Validate() error {
 }
 
 type BudgetRepository interface {
-	SetBudget(budget *Budget) error
-	GetBudgets() ([]Budget, error)
-	GetBudget(category string) (*Budget, error)
+	SetBudget(budget *Budget, ctx context.Context) error
+	GetBudgets(ctx context.Context) ([]Budget, error)
+	GetBudget(category string, ctx context.Context) (*Budget, error)
 }
