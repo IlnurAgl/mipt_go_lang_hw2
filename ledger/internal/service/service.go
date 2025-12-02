@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"ledger/internal/domain"
+	"sync"
 )
 
 type LedgerServiceImpl struct {
@@ -79,4 +81,105 @@ func (l *LedgerServiceImpl) ListTransactions(ctx context.Context) ([]domain.Tran
 
 func (l *LedgerServiceImpl) GetReportSummary(from string, to string, ctx context.Context) (*domain.Summary, error) {
 	return l.SummaryRepository.GetSummary(from, to, ctx)
+}
+
+type Result struct {
+	success  bool
+	errorStr string
+	index    int
+}
+
+func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<- Result, ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		select {
+		case job, ok := <-jobs:
+			if !ok {
+				fmt.Printf("Worker %d exiting because jobs channel closed\n", id)
+				return
+			}
+			transaction := job.transaction
+			err := transaction.Validate()
+			if err != nil {
+				results <- Result{success: false, errorStr: "invalid transaction", index: job.index}
+				break
+			}
+			budget, err := r.BudgetRepository.GetBudget(transaction.Category, ctx)
+			if err != nil {
+				if err.Error() == "sql: no rows in result set" {
+					results <- Result{success: false, errorStr: "no budget category", index: job.index}
+					break
+				}
+				results <- Result{success: false, errorStr: err.Error(), index: job.index}
+				break
+			}
+			amount, err := r.TransactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
+			if err != nil {
+				results <- Result{success: false, errorStr: err.Error(), index: job.index}
+				break
+			}
+			if amount+transaction.Amount > budget.Limit {
+				results <- Result{success: false, errorStr: "budget exceeded", index: job.index}
+				break
+			}
+			_, err = r.TransactionRepository.AddTransaction(&transaction, ctx)
+			if err != nil {
+				results <- Result{success: false, errorStr: err.Error(), index: job.index}
+				break
+			}
+			results <- Result{success: true, errorStr: "", index: job.index}
+		case <-ctx.Done():
+			fmt.Printf("Worker %d exiting due to context cancellation\n", id)
+			return
+		}
+	}
+}
+
+type BulkResult struct {
+	Accepted int64
+	Rejected int64
+	Errors   map[int]string
+	m        sync.Mutex
+}
+
+type WorkerJob struct {
+	index       int
+	transaction domain.Transaction
+}
+
+func (r *LedgerServiceImpl) BulkAddTransactions(transactions []domain.Transaction, numWorkers int, ctx context.Context) (*BulkResult, error) {
+	jobs := make(chan WorkerJob, len(transactions))
+	results := make(chan Result, len(transactions))
+	var wg sync.WaitGroup
+	for w := range numWorkers {
+		wg.Add(1)
+		go r.worker(w, jobs, results, ctx, &wg)
+	}
+
+	go func() {
+		for j := 0; j < len(transactions); j++ {
+			jobs <- WorkerJob{index: j, transaction: transactions[j]}
+		}
+		close(jobs)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	res := BulkResult{Accepted: 0, Rejected: 0}
+	res.Errors = make(map[int]string)
+
+	for result := range results {
+		res.m.Lock()
+		if result.success {
+			res.Accepted++
+		} else {
+			res.Rejected++
+			res.Errors[result.index] = result.errorStr
+		}
+		res.m.Unlock()
+	}
+
+	return &res, nil
 }

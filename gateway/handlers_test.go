@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"gateway/internal"
+	"gateway/internal/handlers"
 	"io"
 	"ledger"
 	"net/http"
@@ -17,7 +17,7 @@ func TestBudgetHandler(t *testing.T) {
 	bodyReader := bytes.NewBuffer([]byte("{\"limit\": 1000, \"category\": \"test\"}"))
 	req := httptest.NewRequest(http.MethodPost, "/api/budget", bodyReader)
 	w := httptest.NewRecorder()
-	budgetHandler(w, req)
+	handlers.BudgetHandler(w, req)
 	res := w.Result()
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()

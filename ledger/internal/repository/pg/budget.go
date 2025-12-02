@@ -3,8 +3,8 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"ledger/internal/domain"
 )
-import "ledger/internal/domain"
 
 type BudgetPgRepository struct {
 	db *sql.DB

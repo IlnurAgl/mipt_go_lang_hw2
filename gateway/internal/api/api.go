@@ -1,4 +1,4 @@
-package internal
+package api
 
 import (
 	"context"
@@ -54,4 +54,24 @@ func CreateBudget(s ledger.LedgerService, r CreateBudgetRequest, ctx context.Con
 		return nil, err
 	}
 	return &BudgetResponse{Category: r.Category, Limit: r.Limit}, nil
+}
+
+type BulkTransactionsResult struct {
+	Accepted int64          `json:"accepted"`
+	Rejected int64          `json:"rejected"`
+	Errors   map[int]string `json:"errors"`
+}
+
+func BulkCreateTransaction(s ledger.LedgerService, transatcions []CreateTransactionRequest, ctx context.Context) (BulkTransactionsResult, error) {
+	trs := make([]ledger.Transaction, 0)
+	for _, transatcion := range transatcions {
+		trs = append(trs, ledger.Transaction{
+			Amount:      transatcion.Amount,
+			Category:    transatcion.Category,
+			Date:        transatcion.Date,
+			Description: transatcion.Description,
+		})
+	}
+	result, err := s.BulkAddTransactions(trs, 4, ctx)
+	return BulkTransactionsResult{result.Accepted, result.Rejected, result.Errors}, err
 }

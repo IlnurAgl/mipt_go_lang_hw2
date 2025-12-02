@@ -29,6 +29,24 @@ ilnur@MacBook-Pro-Ilnur mipt_go_lang_hw2 %  curl -X POST "127.0.0.1:8080/api/rep
 {"test":204
 ```
 
+```
+curl -X POST "127.0.0.1:8080/api/transactions/bulk" -d '
+[
+    {
+        "amount": 1,
+        "category": "еда",
+        "description": "test",
+        "date": "02-12-2025"
+    },
+    {
+        "amount": 1,
+        "category": "еда",
+        "description": "test",
+        "date": "02-12-2025"
+    }
+]'
+```
+
 ## Миграции
 ```
 goose -dir ./ledger/migrations postgres $DATABASE_URL up

@@ -8,12 +8,15 @@ import (
 	"ledger/internal/service"
 )
 
+type Transaction = domain.Transaction
+
 type LedgerService interface {
 	SetBudget(category string, limit float64, ctx context.Context) error
 	GetBudgets(ctx context.Context) (map[string]domain.Budget, error)
 	AddTransaction(Amount float64, Category string, Description string, Date string, ctx context.Context) (int64, error)
 	ListTransactions(ctx context.Context) ([]domain.Transaction, error)
 	GetReportSummary(from string, to string, ctx context.Context) (*domain.Summary, error)
+	BulkAddTransactions(transactions []domain.Transaction, numWorkers int, ctx context.Context) (*service.BulkResult, error)
 }
 
 func NewLedgerService() (LedgerService, func(), error) {
