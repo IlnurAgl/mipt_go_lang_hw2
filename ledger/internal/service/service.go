@@ -9,37 +9,41 @@ import (
 )
 
 type LedgerServiceImpl struct {
-	BudgetRepository      domain.BudgetRepository
-	TransactionRepository domain.TransactionRepository
-	SummaryRepository     domain.SummaryRepository
+	budgetRepository      domain.BudgetRepository
+	transactionRepository domain.TransactionRepository
+	summaryRepository     domain.SummaryRepository
 }
 
 func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepository domain.TransactionRepository, summaryRepository domain.SummaryRepository) *LedgerServiceImpl {
 	return &LedgerServiceImpl{
-		BudgetRepository:      budgetRepository,
-		TransactionRepository: transactionsRepository,
-		SummaryRepository:     summaryRepository,
+		budgetRepository:      budgetRepository,
+		transactionRepository: transactionsRepository,
+		summaryRepository:     summaryRepository,
 	}
 }
 
-func (l *LedgerServiceImpl) SetBudget(category string, limit float64, ctx context.Context) error {
-	budget := domain.Budget{
-		Category: category,
-		Limit:    limit,
-	}
+func (l *LedgerServiceImpl) BudgetAdd(ctx context.Context, budget *domain.Budget) error {
 	err := budget.Validate()
 	if err != nil {
 		return err
 	}
-	err = l.BudgetRepository.SetBudget(&budget, ctx)
+	err = l.budgetRepository.SetBudget(budget, ctx)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (l *LedgerServiceImpl) GetBudgets(ctx context.Context) (map[string]domain.Budget, error) {
-	budgets, err := l.BudgetRepository.GetBudgets(ctx)
+func (l *LedgerServiceImpl) BudgetGet(ctx context.Context, category string) (*domain.Budget, error) {
+	budget, err := l.budgetRepository.GetBudget(category, ctx)
+	if err != nil {
+		return nil, err
+	}
+	return budget, nil
+}
+
+func (l *LedgerServiceImpl) BudgetsList(ctx context.Context) (map[string]domain.Budget, error) {
+	budgets, err := l.budgetRepository.GetBudgets(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -50,37 +54,39 @@ func (l *LedgerServiceImpl) GetBudgets(ctx context.Context) (map[string]domain.B
 	return budgetMap, nil
 }
 
-func (l *LedgerServiceImpl) AddTransaction(Amount float64, Category string, Description string, Date string, ctx context.Context) (int64, error) {
-	transaction := domain.Transaction{
-		Amount:      Amount,
-		Category:    Category,
-		Description: Description,
-		Date:        Date,
-	}
+func (l *LedgerServiceImpl) TransactionAdd(ctx context.Context, transaction *domain.Transaction) (int64, error) {
 	err := transaction.Validate()
 	if err != nil {
 		return 0, errors.New("invalid transaction")
 	}
-	budget, err := l.BudgetRepository.GetBudget(transaction.Category, ctx)
+	budget, err := l.budgetRepository.GetBudget(transaction.Category, ctx)
 	if err != nil {
 		return 0, err
 	}
-	amount, err := l.TransactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
+	amount, err := l.transactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
 	if err != nil {
 		return 0, err
 	}
 	if amount+transaction.Amount > budget.Limit {
 		return 0, errors.New("budget exceeded")
 	}
-	id, err := l.TransactionRepository.AddTransaction(&transaction, ctx)
+	id, err := l.transactionRepository.AddTransaction(transaction, ctx)
 	if err != nil {
 		return 0, err
 	}
 	return id, nil
 }
 
-func (l *LedgerServiceImpl) ListTransactions(ctx context.Context) ([]domain.Transaction, error) {
-	transactions, err := l.TransactionRepository.ListTransactions(ctx)
+func (l *LedgerServiceImpl) TransactionGet(ctx context.Context, id int64) (*domain.Transaction, error) {
+	transaction, err := l.transactionRepository.GetTransaction(id, ctx)
+	if err != nil {
+		return nil, err
+	}
+	return transaction, err
+}
+
+func (l *LedgerServiceImpl) TransactionsList(ctx context.Context) ([]domain.Transaction, error) {
+	transactions, err := l.transactionRepository.ListTransactions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +94,7 @@ func (l *LedgerServiceImpl) ListTransactions(ctx context.Context) ([]domain.Tran
 }
 
 func (l *LedgerServiceImpl) GetReportSummary(from string, to string, ctx context.Context) (*domain.Summary, error) {
-	return l.SummaryRepository.GetSummary(from, to, ctx)
+	return l.summaryRepository.GetSummary(from, to, ctx)
 }
 
 type Result struct {
@@ -112,7 +118,7 @@ func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<-
 				results <- Result{success: false, errorStr: "invalid transaction", index: job.index}
 				break
 			}
-			budget, err := r.BudgetRepository.GetBudget(transaction.Category, ctx)
+			budget, err := r.budgetRepository.GetBudget(transaction.Category, ctx)
 			if err != nil {
 				if err.Error() == "sql: no rows in result set" {
 					results <- Result{success: false, errorStr: "no budget category", index: job.index}
@@ -121,7 +127,7 @@ func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<-
 				results <- Result{success: false, errorStr: err.Error(), index: job.index}
 				break
 			}
-			amount, err := r.TransactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
+			amount, err := r.transactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
 			if err != nil {
 				results <- Result{success: false, errorStr: err.Error(), index: job.index}
 				break
@@ -130,7 +136,7 @@ func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<-
 				results <- Result{success: false, errorStr: "budget exceeded", index: job.index}
 				break
 			}
-			_, err = r.TransactionRepository.AddTransaction(&transaction, ctx)
+			_, err = r.transactionRepository.AddTransaction(&transaction, ctx)
 			if err != nil {
 				results <- Result{success: false, errorStr: err.Error(), index: job.index}
 				break

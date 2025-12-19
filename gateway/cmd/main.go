@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"gateway/internal/config"
+	"gateway/internal/handler"
+	ledgerv1 "gateway/internal/pb/ledger/v1"
 	"gateway/internal/server/httpserver"
+	"gateway/internal/service"
 	"log"
 	"net/http"
 	"os/signal"
@@ -55,28 +58,20 @@ func main() {
 	defer conn.Close()
 	log.Printf("Connected to gRPC backend successfully")
 
-	// service, closeDbFn, closeRedisFn, err := ledger.NewLedgerService()
-	// defer closeDbFn()
-	// defer closeRedisFn()
-	// if err != nil {
-	// 	println(err.Error())
-	// 	return
-	// }
-	// trs := handlers.NewTransactionHandlers(service)
-	// budgetHandlers := handlers.NewBudgetHandlers(service)
-
-	// r := mux.NewRouter()
-	// r.Use(loggingMiddleware)
-	// r.Use(contextMiddleware)
-	// r.HandleFunc("/ping", ping)
-	// r.HandleFunc("/api/transaction", trs.TransactionHandler)
-	// r.HandleFunc("/api/budget", budgetHandlers.BudgetHandler)
-	// r.HandleFunc("/api/reports/summary", handlers.ReportHandler(service))
-	// r.HandleFunc("/api/transactions/bulk", trs.TransactionBulkHandler)
+	ledgerService := service.NewLedgerGatewayService(ledgerv1.NewLedgerServiceClient(conn))
+	ledgerHandler := handler.NewLedgerHandler(ledgerService)
 
 	engine := gin.New()
 	engine.Use(gin.Logger(), gin.Recovery(), loggingMiddleware(), timeoutMiddleware())
 	engine.GET("/ping", ping)
+	engine.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    http.StatusNotFound,
+			"message": "Not found",
+		})
+	})
+	api := engine.Group("/api")
+	ledgerHandler.Register(api)
 
 	server := httpserver.New(cfg.HTTP, engine)
 

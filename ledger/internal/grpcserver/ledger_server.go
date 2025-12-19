@@ -33,18 +33,18 @@ func (s *LedgerServer) BudgetAdd(ctx context.Context, req *pb.BudgetAddRequest) 
 		Category: req.GetCategory(),
 		Limit:    float64(req.GetLimit()),
 	}
-	err := s.ledgerService.BudgetRepository.SetBudget(&budget, ctx)
+	err := s.ledgerService.BudgetAdd(ctx, &budget)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "set budget: %v", err)
 	}
 	return &emptypb.Empty{}, nil
 }
 
-func (s *LedgerServer) BudgertGet(ctx context.Context, req *pb.BudgetGetRequest) (*pb.BudgetGetResponse, error) {
+func (s *LedgerServer) BudgetGet(ctx context.Context, req *pb.BudgetGetRequest) (*pb.BudgetGetResponse, error) {
 	if req.GetCategory() == "" {
 		return nil, status.Error(codes.InvalidArgument, "category is required")
 	}
-	resp, err := s.ledgerService.BudgetRepository.GetBudget(req.GetCategory(), ctx)
+	resp, err := s.ledgerService.BudgetGet(ctx, req.GetCategory())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get budget: %v", err)
 	}
@@ -55,17 +55,17 @@ func (s *LedgerServer) BudgertGet(ctx context.Context, req *pb.BudgetGetRequest)
 }
 
 func (s *LedgerServer) BudgetsList(ctx context.Context, _ *emptypb.Empty) (*pb.BudgetGetListResponse, error) {
-	budgets, err := s.ledgerService.BudgetRepository.GetBudgets(ctx)
+	budgets, err := s.ledgerService.BudgetsList(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get budgets: %v", err)
 	}
 
-	pbBudgets := make([]*pb.BudgetGetResponse, len(budgets))
-	for i, budget := range budgets {
-		pbBudgets[i] = &pb.BudgetGetResponse{
+	pbBudgets := make([]*pb.BudgetGetResponse, 0)
+	for _, budget := range budgets {
+		pbBudgets = append(pbBudgets, &pb.BudgetGetResponse{
 			Category: budget.Category,
 			Limit:    float32(budget.Limit),
-		}
+		})
 	}
 
 	return &pb.BudgetGetListResponse{
@@ -92,7 +92,7 @@ func (s *LedgerServer) TransactionAdd(ctx context.Context, req *pb.TransactionAd
 		Date:        req.GetDate(),
 		Description: req.GetDescription(),
 	}
-	id, err := s.ledgerService.TransactionRepository.AddTransaction(&tr, ctx)
+	id, err := s.ledgerService.TransactionAdd(ctx, &tr)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add transaction: %v", err)
 	}
@@ -105,7 +105,7 @@ func (s *LedgerServer) TransactionGet(ctx context.Context, req *pb.TransactionGe
 	if req.GetId() == 0 {
 		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
-	tr, err := s.ledgerService.TransactionRepository.GetTransaction(req.GetId(), ctx)
+	tr, err := s.ledgerService.TransactionGet(ctx, req.GetId())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get transaction: %v", err)
 	}
@@ -119,7 +119,7 @@ func (s *LedgerServer) TransactionGet(ctx context.Context, req *pb.TransactionGe
 }
 
 func (s *LedgerServer) TransactionList(ctx context.Context, req *emptypb.Empty) (*pb.TransactionGetListResponse, error) {
-	trs, err := s.ledgerService.TransactionRepository.ListTransactions(ctx)
+	trs, err := s.ledgerService.TransactionsList(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list transactions: %v", err)
 	}

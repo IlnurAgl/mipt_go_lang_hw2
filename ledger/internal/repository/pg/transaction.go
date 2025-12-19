@@ -36,7 +36,7 @@ func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction
 
 func (r *TransactionPgRepository) GetTransaction(id int64, ctx context.Context) (*domain.Transaction, error) {
 	var tr domain.Transaction
-	err := r.db.QueryRowContext(ctx, "SELECT id, amount, category, description, date FROM expenses where id=$1", id).Scan(&tr)
+	err := r.db.QueryRowContext(ctx, "SELECT id, amount, category, description, date FROM expenses where id=$1", id).Scan(&tr.ID, &tr.Amount, &tr.Category, &tr.Description, &tr.Date)
 	if err != nil {
 		return nil, err
 	}
