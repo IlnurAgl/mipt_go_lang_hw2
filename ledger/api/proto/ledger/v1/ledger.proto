@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package ledger.v1;
+import "google/protobuf/empty.proto";
+
+option go_package = "ledger/internal/pb/ledger/v1";
+
+service LedgerService {
+    rpc BudgetAdd(BudgetAddRequest) returns (google.protobuf.Empty);
+    rpc BudgetGet(BudgetGetRequest) returns (BudgetGetResponse);
+    rpc BudgetsList(google.protobuf.Empty) returns (BudgetGetListResponse);
+    rpc TransactionAdd(TransactionAddRequest) returns (TransactionAddResponse);
+    rpc TransactionGet(TransactionGetRequest) returns (TransactionGetResponse);
+    rpc TransactionList(google.protobuf.Empty) returns (TransactionGetListResponse);
+}
+
+message BudgetAddRequest {
+    string category = 1;
+    float limit = 2;
+}
+
+message BudgetGetRequest {
+    string category = 1;
+}
+
+message BudgetGetResponse {
+    string category = 1;
+    float limit = 2;
+}
+
+message BudgetGetListResponse {
+    repeated BudgetGetResponse budgets = 1;
+}
+
+message TransactionAddRequest {
+    float amount = 1;
+    string category = 2;
+    string description = 3;
+    string date = 4;
+}
+
+message TransactionAddResponse {
+    int64 id = 1;
+}
+
+message TransactionGetRequest {
+    int64 id = 1;
+}
+
+message TransactionGetResponse {
+    int64 id = 1;
+    float amount = 2;
+    string category = 3;
+    string description = 4;
+    string date = 5;
+}
+
+message TransactionGetListResponse {
+    repeated TransactionGetResponse transactions = 1;
+}

@@ -14,6 +14,14 @@ type LedgerServiceImpl struct {
 	SummaryRepository     domain.SummaryRepository
 }
 
+func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepository domain.TransactionRepository, summaryRepository domain.SummaryRepository) *LedgerServiceImpl {
+	return &LedgerServiceImpl{
+		BudgetRepository:      budgetRepository,
+		TransactionRepository: transactionsRepository,
+		SummaryRepository:     summaryRepository,
+	}
+}
+
 func (l *LedgerServiceImpl) SetBudget(category string, limit float64, ctx context.Context) error {
 	budget := domain.Budget{
 		Category: category,

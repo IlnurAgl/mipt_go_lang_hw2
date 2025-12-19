@@ -22,11 +22,3 @@ func Connect() (*redis.Client, error) {
 	println("Connected to redis")
 	return client, nil
 }
-
-func Close(client *redis.Client) error {
-	err := client.Close()
-	if err != nil {
-		return err
-	}
-	return nil
-}

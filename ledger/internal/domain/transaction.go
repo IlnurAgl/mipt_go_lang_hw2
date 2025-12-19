@@ -25,6 +25,7 @@ func (tx *Transaction) Validate() error {
 
 type TransactionRepository interface {
 	AddTransaction(transaction *Transaction, ctx context.Context) (int64, error)
+	GetTransaction(id int64, ctx context.Context) (*Transaction, error)
 	ListTransactions(ctx context.Context) ([]Transaction, error)
 	GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error)
 }

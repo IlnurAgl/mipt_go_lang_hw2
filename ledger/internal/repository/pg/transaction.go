@@ -34,6 +34,15 @@ func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction
 	return newID, nil
 }
 
+func (r *TransactionPgRepository) GetTransaction(id int64, ctx context.Context) (*domain.Transaction, error) {
+	var tr domain.Transaction
+	err := r.db.QueryRowContext(ctx, "SELECT id, amount, category, description, date FROM expenses where id=$1", id).Scan(&tr)
+	if err != nil {
+		return nil, err
+	}
+	return &tr, nil
+}
+
 func (r *TransactionPgRepository) ListTransactions(ctx context.Context) ([]domain.Transaction, error) {
 	rows, err := r.db.QueryContext(ctx, "SELECT id, amount, category, description, date FROM expenses ORDER BY date DESC, id DESC")
 	if err != nil {
