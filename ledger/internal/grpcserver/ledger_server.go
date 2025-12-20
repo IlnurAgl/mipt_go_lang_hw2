@@ -13,12 +13,12 @@ import (
 
 type LedgerServer struct {
 	pb.UnimplementedLedgerServiceServer
-	ledgerService *service.LedgerServiceImpl
+	ledgerService service.LedgerService
 }
 
 var _ pb.LedgerServiceServer = (*LedgerServer)(nil)
 
-func NewLedgerServer(svc *service.LedgerServiceImpl) *LedgerServer {
+func NewLedgerServer(svc service.LedgerService) *LedgerServer {
 	return &LedgerServer{ledgerService: svc}
 }
 
@@ -136,5 +136,43 @@ func (s *LedgerServer) TransactionList(ctx context.Context, req *emptypb.Empty) 
 
 	return &pb.TransactionGetListResponse{
 		Transactions: pbTrs,
+	}, nil
+}
+
+func (s *LedgerServer) ReportSummary(ctx context.Context, req *pb.SummaryRequest) (*pb.SummaryResponse, error) {
+	if req.From == "" {
+		return nil, status.Error(codes.InvalidArgument, "from is required")
+	}
+	if req.To == "" {
+		return nil, status.Error(codes.InvalidArgument, "to is required")
+	}
+	summary, err := s.ledgerService.GetReportSummary(ctx, req.From, req.To)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "report summary: %v", err)
+	}
+	return &pb.SummaryResponse{
+		Report:      summary.Categories,
+		CacheResult: summary.CacheResult,
+	}, nil
+}
+
+func (s *LedgerServer) BulkAddTransactions(ctx context.Context, req *pb.TransactionBulkAddRequest) (*pb.TransactionBulkAddResponse, error) {
+	trs := make([]domain.Transaction, 0, len(req.Transactions))
+	for _, transaction := range req.Transactions {
+		trs = append(trs, domain.Transaction{
+			Amount:      float64(transaction.Amount),
+			Category:    transaction.Category,
+			Description: transaction.Description,
+			Date:        transaction.Date,
+		})
+	}
+	resp, err := s.ledgerService.BulkAddTransactions(ctx, trs, 4)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "bulk add transaction: %v", err)
+	}
+	return &pb.TransactionBulkAddResponse{
+		Accepted: resp.Accepted,
+		Rejected: resp.Rejected,
+		Errors:   resp.Errors,
 	}, nil
 }

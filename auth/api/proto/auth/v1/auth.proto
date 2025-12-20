@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package auth.v1;
+import "google/protobuf/empty.proto";
+
+option go_package = "auth/internal/pb/auth/v1";
+
+service AuthService {
+    rpc Login(LoginRequest) returns (LoginResponse);
+    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+    rpc Register(RegisterRequest) returns (google.protobuf.Empty);
+}
+
+message LoginRequest {
+    string login = 1;
+    string password = 2;
+}
+
+message LoginResponse {
+    string token = 1;
+}
+
+message ValidateTokenRequest {
+    string token = 1;
+}
+
+message ValidateTokenResponse {
+    string user_id = 1;
+    bool valid = 2;
+}
+
+message RegisterRequest {
+    string login = 1;
+    string password = 2;
+}

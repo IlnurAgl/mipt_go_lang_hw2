@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"gateway/internal/config"
 	"gateway/internal/handler"
+	authv1 "gateway/internal/pb/auth/v1"
 	ledgerv1 "gateway/internal/pb/ledger/v1"
 	"gateway/internal/server/httpserver"
 	"gateway/internal/service"
 	"log"
 	"net/http"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,24 +47,64 @@ func timeoutMiddleware() gin.HandlerFunc {
 	)
 }
 
+func authMiddleware(authConn authv1.AuthServiceClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.URL.Path == "/ping" {
+			c.Next()
+			return
+		}
+		token := c.GetHeader("Authorization")
+		if token == "" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+			c.Abort()
+			return
+		}
+		has := strings.HasPrefix(token, "Bearer")
+		if !has {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+			c.Abort()
+			return
+		}
+		resp, err := authConn.ValidateToken(c, &authv1.ValidateTokenRequest{Token: token[7:]})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Auth server down"})
+			c.Abort()
+			return
+		}
+		if !resp.Valid {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	cfg := config.Load()
-	log.Printf("Connecting to gRPC backend at %s", cfg.GRPC.Address)
-	conn, err := grpcClient(cfg.GRPC.Address)
+	log.Printf("Connecting to gRPC backend at %s", cfg.GRPC.LedgerAddress)
+	conn, err := grpcClient(cfg.GRPC.LedgerAddress)
 	if err != nil {
 		log.Fatalf("failed to connect to gRPC backend: %v", err)
 	}
 	defer conn.Close()
 	log.Printf("Connected to gRPC backend successfully")
 
+	log.Printf("Connecting to gRPC auth backend at %s", cfg.GRPC.AuthAddress)
+	authConn, err := grpcClient(cfg.GRPC.AuthAddress)
+	if err != nil {
+		log.Fatalf("failed to connect to gRPC auth backend: %v", err)
+	}
+	defer authConn.Close()
+	log.Printf("Connected to gRPC auth backend successfully")
+
 	ledgerService := service.NewLedgerGatewayService(ledgerv1.NewLedgerServiceClient(conn))
 	ledgerHandler := handler.NewLedgerHandler(ledgerService)
-
 	engine := gin.New()
-	engine.Use(gin.Logger(), gin.Recovery(), loggingMiddleware(), timeoutMiddleware())
+	engine.Use(gin.Logger(), gin.Recovery(), loggingMiddleware(), timeoutMiddleware(), authMiddleware(authv1.NewAuthServiceClient(authConn)))
 	engine.GET("/ping", ping)
 	engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{

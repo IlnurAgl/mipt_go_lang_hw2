@@ -36,3 +36,23 @@ type TransactionGetResponse struct {
 	Description string  `json:"description" example:"Тест"`
 	Date        string  `json:"Date" example:"2025-12-19"`
 }
+
+type ReportSummary struct {
+	From string `json:"from" exaple:"2025-12-10"`
+	To   string `json:"to" example:"2025-12-12"`
+}
+
+type ReportSummaryResponse struct {
+	Report      map[string]float64 `json:"report"`
+	CacheResult bool               `json:"cache_result"`
+}
+
+type TransactionBulkAdd struct {
+	Transactions []TrasnactionAdd `json:"transactions"`
+}
+
+type TransactionBulkAddResponse struct {
+	Accepted int64
+	Rejected int64
+	Errors   map[int64]string
+}

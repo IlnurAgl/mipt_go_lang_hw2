@@ -1,0 +1,2527 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>cmd: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">gateway/cmd/main.go (0.0%)</option>
+				
+				<option value="file1">gateway/internal/config/config.go (0.0%)</option>
+				
+				<option value="file2">gateway/internal/handler/ledger_handler.go (79.6%)</option>
+				
+				<option value="file3">gateway/internal/pb/auth/v1/auth.pb.go (0.0%)</option>
+				
+				<option value="file4">gateway/internal/pb/auth/v1/auth_grpc.pb.go (0.0%)</option>
+				
+				<option value="file5">gateway/internal/pb/ledger/v1/ledger.pb.go (0.0%)</option>
+				
+				<option value="file6">gateway/internal/pb/ledger/v1/ledger_grpc.pb.go (0.0%)</option>
+				
+				<option value="file7">gateway/internal/server/httpserver/server.go (0.0%)</option>
+				
+				<option value="file8">gateway/internal/service/ledger_service.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "fmt"
+        "gateway/internal/config"
+        "gateway/internal/handler"
+        authv1 "gateway/internal/pb/auth/v1"
+        ledgerv1 "gateway/internal/pb/ledger/v1"
+        "gateway/internal/server/httpserver"
+        "gateway/internal/service"
+        "log"
+        "net/http"
+        "os/signal"
+        "strings"
+        "syscall"
+        "time"
+
+        "github.com/gin-contrib/timeout"
+
+        "github.com/gin-gonic/gin"
+        "google.golang.org/grpc"
+        "google.golang.org/grpc/credentials/insecure"
+)
+
+func ping(c *gin.Context) <span class="cov0" title="0">{
+        c.String(http.StatusOK, "pong")
+}</span>
+
+func loggingMiddleware() gin.HandlerFunc <span class="cov0" title="0">{
+        return func(c *gin.Context) </span><span class="cov0" title="0">{
+                fmt.Printf("Request received: %s %s\n", c.Request.Method, c.Request.URL.Path)
+                t := time.Now()
+                c.Next()
+                fmt.Printf("Request handled: %s %s, time: %s\n", c.Request.Method, c.Request.URL.Path, time.Since(t))
+        }</span>
+}
+
+func timeoutResponse(c *gin.Context) <span class="cov0" title="0">{
+        c.String(http.StatusRequestTimeout, "timeout")
+}</span>
+
+func timeoutMiddleware() gin.HandlerFunc <span class="cov0" title="0">{
+        return timeout.New(
+                timeout.WithTimeout(2*time.Second),
+                timeout.WithResponse(timeoutResponse),
+        )
+}</span>
+
+func authMiddleware(authConn authv1.AuthServiceClient) gin.HandlerFunc <span class="cov0" title="0">{
+        return func(c *gin.Context) </span><span class="cov0" title="0">{
+                if c.Request.URL.Path == "/ping" </span><span class="cov0" title="0">{
+                        c.Next()
+                        return
+                }</span>
+                <span class="cov0" title="0">token := c.GetHeader("Authorization")
+                if token == "" </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+                        c.Abort()
+                        return
+                }</span>
+                <span class="cov0" title="0">has := strings.HasPrefix(token, "Bearer")
+                if !has </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+                        c.Abort()
+                        return
+                }</span>
+                <span class="cov0" title="0">resp, err := authConn.ValidateToken(c, &amp;authv1.ValidateTokenRequest{Token: token[7:]})
+                if err != nil </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "Auth server down"})
+                        c.Abort()
+                        return
+                }</span>
+                <span class="cov0" title="0">if !resp.Valid </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusForbidden, gin.H{"error": "Invalid auth token"})
+                        c.Abort()
+                        return
+                }</span>
+                <span class="cov0" title="0">c.Next()</span>
+        }
+}
+
+func main() <span class="cov0" title="0">{
+        ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+        defer stop()
+
+        cfg := config.Load()
+        log.Printf("Connecting to gRPC backend at %s", cfg.GRPC.LedgerAddress)
+        conn, err := grpcClient(cfg.GRPC.LedgerAddress)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("failed to connect to gRPC backend: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer conn.Close()
+        log.Printf("Connected to gRPC backend successfully")
+
+        log.Printf("Connecting to gRPC auth backend at %s", cfg.GRPC.AuthAddress)
+        authConn, err := grpcClient(cfg.GRPC.AuthAddress)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("failed to connect to gRPC auth backend: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer authConn.Close()
+        log.Printf("Connected to gRPC auth backend successfully")
+
+        ledgerService := service.NewLedgerGatewayService(ledgerv1.NewLedgerServiceClient(conn))
+        ledgerHandler := handler.NewLedgerHandler(ledgerService)
+        engine := gin.New()
+        engine.Use(gin.Logger(), gin.Recovery(), loggingMiddleware(), timeoutMiddleware(), authMiddleware(authv1.NewAuthServiceClient(authConn)))
+        engine.GET("/ping", ping)
+        engine.NoRoute(func(c *gin.Context) </span><span class="cov0" title="0">{
+                c.JSON(http.StatusNotFound, gin.H{
+                        "code":    http.StatusNotFound,
+                        "message": "Not found",
+                })
+        }</span>)
+        <span class="cov0" title="0">api := engine.Group("/api")
+        ledgerHandler.Register(api)
+
+        server := httpserver.New(cfg.HTTP, engine)
+
+        go func() </span><span class="cov0" title="0">{
+                log.Printf("HTTP server listening on %s", cfg.HTTP.Address)
+                if err := server.Start(); err != nil </span><span class="cov0" title="0">{
+                        log.Fatalf("http server stopped: %v", err)
+                }</span>
+        }()
+
+        <span class="cov0" title="0">&lt;-ctx.Done()
+
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
+        defer cancel()
+
+        if err := server.Shutdown(shutdownCtx); err != nil </span><span class="cov0" title="0">{
+                log.Printf("graceful shutdown failed: %v", err)
+        }</span>
+}
+
+func grpcClient(address string) (*grpc.ClientConn, error) <span class="cov0" title="0">{
+        conn, err := grpc.NewClient(
+                address,
+                grpc.WithTransportCredentials(insecure.NewCredentials()),
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return conn, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package config
+
+import (
+        "os"
+        "time"
+)
+
+type HTTPConfig struct {
+        Address         string
+        ReadTimeout     time.Duration
+        WriteTimeout    time.Duration
+        ShutdownTimeout time.Duration
+}
+
+type GRPCConfig struct {
+        LedgerAddress string
+        AuthAddress   string
+}
+
+type Config struct {
+        HTTP HTTPConfig
+        GRPC GRPCConfig
+}
+
+func Load() Config <span class="cov0" title="0">{
+        return Config{
+                HTTP: HTTPConfig{
+                        Address:         getEnv("HTTP_ADDRESS", ":8081"),
+                        ReadTimeout:     5 * time.Second,
+                        WriteTimeout:    10 * time.Second,
+                        ShutdownTimeout: 5 * time.Second,
+                },
+                GRPC: GRPCConfig{
+                        LedgerAddress: getEnv("GRPC_ADDRESS", "127.0.0.1:9090"),
+                        AuthAddress:   getEnv("AUTH_GRPC_ADDR", "127.0.0.1:50002"),
+                },
+        }
+}</span>
+
+func getEnv(key, fallback string) string <span class="cov0" title="0">{
+        if val := os.Getenv(key); val != "" </span><span class="cov0" title="0">{
+                return val
+        }</span>
+        <span class="cov0" title="0">return fallback</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package handler
+
+import (
+        "encoding/csv"
+        "gateway/internal/model"
+        "gateway/internal/service"
+        "net/http"
+        "strconv"
+        "strings"
+        "time"
+
+        "github.com/gin-gonic/gin"
+)
+
+type LedgerHandler struct {
+        service service.LedgerGatewayService
+}
+
+func NewLedgerHandler(s service.LedgerGatewayService) *LedgerHandler <span class="cov8" title="1">{
+        if s == nil </span><span class="cov0" title="0">{
+                panic("BudgetHandler requires service")</span>
+        }
+        <span class="cov8" title="1">return &amp;LedgerHandler{service: s}</span>
+}
+
+func (l *LedgerHandler) Register(r *gin.RouterGroup) <span class="cov0" title="0">{
+        budget := r.Group("/budget")
+        </span><span class="cov0" title="0">{
+                budget.POST("/", l.BudgetAdd)
+                budget.GET("/", l.BudgetGet)
+                budget.GET("/list", l.BudgetList)
+        }</span>
+        <span class="cov0" title="0">transactions := r.Group("/transactions")
+        </span><span class="cov0" title="0">{
+                transactions.POST("/", l.TransactionAdd)
+                transactions.POST("/bulk", l.TransactionBulkAdd)
+                transactions.GET("/", l.TransactionGet)
+                transactions.GET("/list", l.TransactionList)
+                transactions.GET("/export.csv", l.TransactionExportCSV)
+        }</span>
+        <span class="cov0" title="0">reports := r.Group("/reports")
+        </span><span class="cov0" title="0">{
+                reports.GET("/summary", l.ReportSummary)
+        }</span>
+}
+
+func (l *LedgerHandler) BudgetAdd(c *gin.Context) <span class="cov8" title="1">{
+        var req model.BudgetAdd
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">if req.Category == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "category must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">err := l.service.BudgetAdd(c.Request.Context(), req)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.Status(http.StatusOK)</span>
+}
+
+func (l *LedgerHandler) BudgetGet(c *gin.Context) <span class="cov8" title="1">{
+        var req model.BudgetGet
+        category := c.Query("category")
+        if category == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "category must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">req.Category = category
+        resp, err := l.service.BudgetGet(c.Request.Context(), req)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) BudgetList(c *gin.Context) <span class="cov8" title="1">{
+        resp, err := l.service.BudgetList(c.Request.Context())
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) TransactionAdd(c *gin.Context) <span class="cov8" title="1">{
+        var req model.TrasnactionAdd
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">if req.Amount == 0 </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "amount must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">if req.Category == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "category must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">if req.Date == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "date must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">if req.Description == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "category must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">resp, err := l.service.TransactionAdd(c.Request.Context(), req)
+        if err != nil &amp;&amp; err.Error() == "rpc error: code = Internal desc = add transaction: budget exceeded" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusConflict, gin.H{"error": "budget exceeded"})
+                return
+        }</span>
+        <span class="cov8" title="1">if err != nil &amp;&amp; strings.Contains(err.Error(), "parsing time") </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "Date invalid"})
+                return
+        }</span>
+        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) TransactionGet(c *gin.Context) <span class="cov8" title="1">{
+        var req model.TransactionGet
+        idStr := c.Query("id")
+        if idStr == "" </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "id must not be empty"})
+                return
+        }</span>
+        <span class="cov8" title="1">id, err := strconv.ParseInt(idStr, 10, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "id must be int64"})
+                return
+        }</span>
+        <span class="cov8" title="1">req.Id = id
+        resp, err := l.service.TransactionGet(c.Request.Context(), req)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) TransactionList(c *gin.Context) <span class="cov8" title="1">{
+        resp, err := l.service.TransactionList(c.Request.Context())
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) TransactionExportCSV(c *gin.Context) <span class="cov8" title="1">{
+        transactions, err := l.service.TransactionList(c.Request.Context())
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.Header("Content-Type", "text/csv")
+        c.Header("Content-Disposition", "attachment; filename=transactions.csv")
+        writer := csv.NewWriter(c.Writer)
+        defer writer.Flush()
+        // Write header
+        if err := writer.Write([]string{"ID", "Amount", "Category", "Description", "Date"}); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write CSV"})
+                return
+        }</span>
+        <span class="cov8" title="1">for _, tx := range transactions </span><span class="cov8" title="1">{
+                record := []string{
+                        strconv.FormatInt(tx.Id, 10),
+                        strconv.FormatFloat(tx.Amount, 'f', 2, 64),
+                        tx.Category,
+                        tx.Description,
+                        tx.Date,
+                }
+                if err := writer.Write(record); err != nil </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write CSV"})
+                        return
+                }</span>
+        }
+}
+
+func (l *LedgerHandler) ReportSummary(c *gin.Context) <span class="cov8" title="1">{
+        var req model.ReportSummary
+        layout := "2006-01-02"
+        from := c.Query("from")
+        _, err := time.Parse(layout, from)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from"})
+                return
+        }</span>
+        <span class="cov8" title="1">to := c.Query("to")
+        _, err = time.Parse(layout, to)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": "invalid to"})
+                return
+        }</span>
+        <span class="cov8" title="1">req.From = from
+        req.To = to
+        resp, err := l.service.ReportSummary(c.Request.Context(), req)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+
+func (l *LedgerHandler) TransactionBulkAdd(c *gin.Context) <span class="cov8" title="1">{
+        var req model.TransactionBulkAdd
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">resp, err := l.service.TransactionBulkAdd(c.Request.Context(), req)
+        if err != nil </span><span class="cov8" title="1">{
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }</span>
+        <span class="cov8" title="1">c.JSON(http.StatusOK, resp)</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Code generated by protoc-gen-go. DO NOT EDIT.
+// versions:
+//         protoc-gen-go v1.36.11
+//         protoc        v6.33.2
+// source: auth/v1/auth.proto
+
+package v1
+
+import (
+        protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+        protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+        emptypb "google.golang.org/protobuf/types/known/emptypb"
+        reflect "reflect"
+        sync "sync"
+        unsafe "unsafe"
+)
+
+const (
+        // Verify that this generated code is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+        // Verify that runtime/protoimpl is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+)
+
+type LoginRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Login         string                 `protobuf:"bytes,1,opt,name=login,proto3" json:"login,omitempty"`
+        Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginRequest) Reset() <span class="cov0" title="0">{
+        *x = LoginRequest{}
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[0]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *LoginRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*LoginRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *LoginRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[0]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
+func (*LoginRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_auth_v1_auth_proto_rawDescGZIP(), []int{0}
+}</span>
+
+func (x *LoginRequest) GetLogin() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Login
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *LoginRequest) GetPassword() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Password
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type LoginResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *LoginResponse) Reset() <span class="cov0" title="0">{
+        *x = LoginResponse{}
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[1]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *LoginResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*LoginResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *LoginResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[1]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
+func (*LoginResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_auth_v1_auth_proto_rawDescGZIP(), []int{1}
+}</span>
+
+func (x *LoginResponse) GetToken() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Token
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type ValidateTokenRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenRequest) Reset() <span class="cov0" title="0">{
+        *x = ValidateTokenRequest{}
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[2]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *ValidateTokenRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*ValidateTokenRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[2]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
+func (*ValidateTokenRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_auth_v1_auth_proto_rawDescGZIP(), []int{2}
+}</span>
+
+func (x *ValidateTokenRequest) GetToken() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Token
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type ValidateTokenResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+        Valid         bool                   `protobuf:"varint,2,opt,name=valid,proto3" json:"valid,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenResponse) Reset() <span class="cov0" title="0">{
+        *x = ValidateTokenResponse{}
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[3]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *ValidateTokenResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*ValidateTokenResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[3]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
+func (*ValidateTokenResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_auth_v1_auth_proto_rawDescGZIP(), []int{3}
+}</span>
+
+func (x *ValidateTokenResponse) GetUserId() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.UserId
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *ValidateTokenResponse) GetValid() bool <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Valid
+        }</span>
+        <span class="cov0" title="0">return false</span>
+}
+
+type RegisterRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Login         string                 `protobuf:"bytes,1,opt,name=login,proto3" json:"login,omitempty"`
+        Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterRequest) Reset() <span class="cov0" title="0">{
+        *x = RegisterRequest{}
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[4]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *RegisterRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*RegisterRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *RegisterRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_auth_v1_auth_proto_msgTypes[4]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
+func (*RegisterRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_auth_v1_auth_proto_rawDescGZIP(), []int{4}
+}</span>
+
+func (x *RegisterRequest) GetLogin() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Login
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *RegisterRequest) GetPassword() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Password
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+var File_auth_v1_auth_proto protoreflect.FileDescriptor
+
+const file_auth_v1_auth_proto_rawDesc = "" +
+        "\n" +
+        "\x12auth/v1/auth.proto\x12\aauth.v1\x1a\x1bgoogle/protobuf/empty.proto\"@\n" +
+        "\fLoginRequest\x12\x14\n" +
+        "\x05login\x18\x01 \x01(\tR\x05login\x12\x1a\n" +
+        "\bpassword\x18\x02 \x01(\tR\bpassword\"%\n" +
+        "\rLoginResponse\x12\x14\n" +
+        "\x05token\x18\x01 \x01(\tR\x05token\",\n" +
+        "\x14ValidateTokenRequest\x12\x14\n" +
+        "\x05token\x18\x01 \x01(\tR\x05token\"F\n" +
+        "\x15ValidateTokenResponse\x12\x17\n" +
+        "\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
+        "\x05valid\x18\x02 \x01(\bR\x05valid\"C\n" +
+        "\x0fRegisterRequest\x12\x14\n" +
+        "\x05login\x18\x01 \x01(\tR\x05login\x12\x1a\n" +
+        "\bpassword\x18\x02 \x01(\tR\bpassword2\xd3\x01\n" +
+        "\vAuthService\x126\n" +
+        "\x05Login\x12\x15.auth.v1.LoginRequest\x1a\x16.auth.v1.LoginResponse\x12N\n" +
+        "\rValidateToken\x12\x1d.auth.v1.ValidateTokenRequest\x1a\x1e.auth.v1.ValidateTokenResponse\x12&lt;\n" +
+        "\bRegister\x12\x18.auth.v1.RegisterRequest\x1a\x16.google.protobuf.EmptyB\x1dZ\x1bgateway/internal/pb/auth/v1b\x06proto3"
+
+var (
+        file_auth_v1_auth_proto_rawDescOnce sync.Once
+        file_auth_v1_auth_proto_rawDescData []byte
+)
+
+func file_auth_v1_auth_proto_rawDescGZIP() []byte <span class="cov0" title="0">{
+        file_auth_v1_auth_proto_rawDescOnce.Do(func() </span><span class="cov0" title="0">{
+                file_auth_v1_auth_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_auth_v1_auth_proto_rawDesc), len(file_auth_v1_auth_proto_rawDesc)))
+        }</span>)
+        <span class="cov0" title="0">return file_auth_v1_auth_proto_rawDescData</span>
+}
+
+var file_auth_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_auth_v1_auth_proto_goTypes = []any{
+        (*LoginRequest)(nil),          // 0: auth.v1.LoginRequest
+        (*LoginResponse)(nil),         // 1: auth.v1.LoginResponse
+        (*ValidateTokenRequest)(nil),  // 2: auth.v1.ValidateTokenRequest
+        (*ValidateTokenResponse)(nil), // 3: auth.v1.ValidateTokenResponse
+        (*RegisterRequest)(nil),       // 4: auth.v1.RegisterRequest
+        (*emptypb.Empty)(nil),         // 5: google.protobuf.Empty
+}
+var file_auth_v1_auth_proto_depIdxs = []int32{
+        0, // 0: auth.v1.AuthService.Login:input_type -&gt; auth.v1.LoginRequest
+        2, // 1: auth.v1.AuthService.ValidateToken:input_type -&gt; auth.v1.ValidateTokenRequest
+        4, // 2: auth.v1.AuthService.Register:input_type -&gt; auth.v1.RegisterRequest
+        1, // 3: auth.v1.AuthService.Login:output_type -&gt; auth.v1.LoginResponse
+        3, // 4: auth.v1.AuthService.ValidateToken:output_type -&gt; auth.v1.ValidateTokenResponse
+        5, // 5: auth.v1.AuthService.Register:output_type -&gt; google.protobuf.Empty
+        3, // [3:6] is the sub-list for method output_type
+        0, // [0:3] is the sub-list for method input_type
+        0, // [0:0] is the sub-list for extension type_name
+        0, // [0:0] is the sub-list for extension extendee
+        0, // [0:0] is the sub-list for field type_name
+}
+
+func init() <span class="cov0" title="0">{ file_auth_v1_auth_proto_init() }</span>
+func file_auth_v1_auth_proto_init() <span class="cov0" title="0">{
+        if File_auth_v1_auth_proto != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">type x struct{}
+        out := protoimpl.TypeBuilder{
+                File: protoimpl.DescBuilder{
+                        GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+                        RawDescriptor: unsafe.Slice(unsafe.StringData(file_auth_v1_auth_proto_rawDesc), len(file_auth_v1_auth_proto_rawDesc)),
+                        NumEnums:      0,
+                        NumMessages:   5,
+                        NumExtensions: 0,
+                        NumServices:   1,
+                },
+                GoTypes:           file_auth_v1_auth_proto_goTypes,
+                DependencyIndexes: file_auth_v1_auth_proto_depIdxs,
+                MessageInfos:      file_auth_v1_auth_proto_msgTypes,
+        }.Build()
+        File_auth_v1_auth_proto = out.File
+        file_auth_v1_auth_proto_goTypes = nil
+        file_auth_v1_auth_proto_depIdxs = nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
+// versions:
+// - protoc-gen-go-grpc v1.6.0
+// - protoc             v6.33.2
+// source: auth/v1/auth.proto
+
+package v1
+
+import (
+        context "context"
+        grpc "google.golang.org/grpc"
+        codes "google.golang.org/grpc/codes"
+        status "google.golang.org/grpc/status"
+        emptypb "google.golang.org/protobuf/types/known/emptypb"
+)
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.64.0 or later.
+const _ = grpc.SupportPackageIsVersion9
+
+const (
+        AuthService_Login_FullMethodName         = "/auth.v1.AuthService/Login"
+        AuthService_ValidateToken_FullMethodName = "/auth.v1.AuthService/ValidateToken"
+        AuthService_Register_FullMethodName      = "/auth.v1.AuthService/Register"
+)
+
+// AuthServiceClient is the client API for AuthService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type AuthServiceClient interface {
+        Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
+        ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
+        Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+}
+
+type authServiceClient struct {
+        cc grpc.ClientConnInterface
+}
+
+func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient <span class="cov0" title="0">{
+        return &amp;authServiceClient{cc}
+}</span>
+
+func (c *authServiceClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(LoginResponse)
+        err := c.cc.Invoke(ctx, AuthService_Login_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *authServiceClient) ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(ValidateTokenResponse)
+        err := c.cc.Invoke(ctx, AuthService_ValidateToken_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *authServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(emptypb.Empty)
+        err := c.cc.Invoke(ctx, AuthService_Register_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+// AuthServiceServer is the server API for AuthService service.
+// All implementations must embed UnimplementedAuthServiceServer
+// for forward compatibility.
+type AuthServiceServer interface {
+        Login(context.Context, *LoginRequest) (*LoginResponse, error)
+        ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error)
+        Register(context.Context, *RegisterRequest) (*emptypb.Empty, error)
+        mustEmbedUnimplementedAuthServiceServer()
+}
+
+// UnimplementedAuthServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAuthServiceServer struct{}
+
+func (UnimplementedAuthServiceServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method Login not implemented")
+}</span>
+func (UnimplementedAuthServiceServer) ValidateToken(context.Context, *ValidateTokenRequest) (*ValidateTokenResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method ValidateToken not implemented")
+}</span>
+func (UnimplementedAuthServiceServer) Register(context.Context, *RegisterRequest) (*emptypb.Empty, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method Register not implemented")
+}</span>
+func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {<span class="cov0" title="0">}</span>
+func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {<span class="cov0" title="0">}</span>
+
+// UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AuthServiceServer will
+// result in compilation errors.
+type UnsafeAuthServiceServer interface {
+        mustEmbedUnimplementedAuthServiceServer()
+}
+
+func RegisterAuthServiceServer(s grpc.ServiceRegistrar, srv AuthServiceServer) <span class="cov0" title="0">{
+        // If the following call panics, it indicates UnimplementedAuthServiceServer was
+        // embedded by pointer and is nil.  This will cause panics if an
+        // unimplemented method is ever invoked, so we test this at initialization
+        // time to prevent it from happening at runtime later due to I/O.
+        if t, ok := srv.(interface{ testEmbeddedByValue() }); ok </span><span class="cov0" title="0">{
+                t.testEmbeddedByValue()
+        }</span>
+        <span class="cov0" title="0">s.RegisterService(&amp;AuthService_ServiceDesc, srv)</span>
+}
+
+func _AuthService_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(LoginRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).Login(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: AuthService_Login_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).Login(ctx, req.(*LoginRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _AuthService_ValidateToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(ValidateTokenRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).ValidateToken(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: AuthService_ValidateToken_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).ValidateToken(ctx, req.(*ValidateTokenRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _AuthService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(RegisterRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).Register(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: AuthService_Register_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(AuthServiceServer).Register(ctx, req.(*RegisterRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+// AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AuthService_ServiceDesc = grpc.ServiceDesc{
+        ServiceName: "auth.v1.AuthService",
+        HandlerType: (*AuthServiceServer)(nil),
+        Methods: []grpc.MethodDesc{
+                {
+                        MethodName: "Login",
+                        Handler:    _AuthService_Login_Handler,
+                },
+                {
+                        MethodName: "ValidateToken",
+                        Handler:    _AuthService_ValidateToken_Handler,
+                },
+                {
+                        MethodName: "Register",
+                        Handler:    _AuthService_Register_Handler,
+                },
+        },
+        Streams:  []grpc.StreamDesc{},
+        Metadata: "auth/v1/auth.proto",
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">// Code generated by protoc-gen-go. DO NOT EDIT.
+// versions:
+//         protoc-gen-go v1.36.11
+//         protoc        v6.33.2
+// source: ledger/v1/ledger.proto
+
+package v1
+
+import (
+        protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+        protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+        emptypb "google.golang.org/protobuf/types/known/emptypb"
+        reflect "reflect"
+        sync "sync"
+        unsafe "unsafe"
+)
+
+const (
+        // Verify that this generated code is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+        // Verify that runtime/protoimpl is sufficiently up-to-date.
+        _ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+)
+
+type BudgetAddRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+        Limit         float32                `protobuf:"fixed32,2,opt,name=limit,proto3" json:"limit,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *BudgetAddRequest) Reset() <span class="cov0" title="0">{
+        *x = BudgetAddRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[0]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *BudgetAddRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*BudgetAddRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *BudgetAddRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[0]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use BudgetAddRequest.ProtoReflect.Descriptor instead.
+func (*BudgetAddRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{0}
+}</span>
+
+func (x *BudgetAddRequest) GetCategory() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Category
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *BudgetAddRequest) GetLimit() float32 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Limit
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+type BudgetGetRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *BudgetGetRequest) Reset() <span class="cov0" title="0">{
+        *x = BudgetGetRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[1]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *BudgetGetRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*BudgetGetRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *BudgetGetRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[1]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use BudgetGetRequest.ProtoReflect.Descriptor instead.
+func (*BudgetGetRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{1}
+}</span>
+
+func (x *BudgetGetRequest) GetCategory() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Category
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type BudgetGetResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Category      string                 `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
+        Limit         float32                `protobuf:"fixed32,2,opt,name=limit,proto3" json:"limit,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *BudgetGetResponse) Reset() <span class="cov0" title="0">{
+        *x = BudgetGetResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[2]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *BudgetGetResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*BudgetGetResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *BudgetGetResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[2]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use BudgetGetResponse.ProtoReflect.Descriptor instead.
+func (*BudgetGetResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{2}
+}</span>
+
+func (x *BudgetGetResponse) GetCategory() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Category
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *BudgetGetResponse) GetLimit() float32 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Limit
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+type BudgetGetListResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Budgets       []*BudgetGetResponse   `protobuf:"bytes,1,rep,name=budgets,proto3" json:"budgets,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *BudgetGetListResponse) Reset() <span class="cov0" title="0">{
+        *x = BudgetGetListResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[3]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *BudgetGetListResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*BudgetGetListResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *BudgetGetListResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[3]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use BudgetGetListResponse.ProtoReflect.Descriptor instead.
+func (*BudgetGetListResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{3}
+}</span>
+
+func (x *BudgetGetListResponse) GetBudgets() []*BudgetGetResponse <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Budgets
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+type TransactionAddRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Amount        float32                `protobuf:"fixed32,1,opt,name=amount,proto3" json:"amount,omitempty"`
+        Category      string                 `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"`
+        Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+        Date          string                 `protobuf:"bytes,4,opt,name=date,proto3" json:"date,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionAddRequest) Reset() <span class="cov0" title="0">{
+        *x = TransactionAddRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[4]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionAddRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionAddRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionAddRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[4]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionAddRequest.ProtoReflect.Descriptor instead.
+func (*TransactionAddRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{4}
+}</span>
+
+func (x *TransactionAddRequest) GetAmount() float32 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Amount
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *TransactionAddRequest) GetCategory() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Category
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *TransactionAddRequest) GetDescription() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Description
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *TransactionAddRequest) GetDate() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Date
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type TransactionBulkAddRequest struct {
+        state         protoimpl.MessageState   `protogen:"open.v1"`
+        Transactions  []*TransactionAddRequest `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionBulkAddRequest) Reset() <span class="cov0" title="0">{
+        *x = TransactionBulkAddRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[5]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionBulkAddRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionBulkAddRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionBulkAddRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[5]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionBulkAddRequest.ProtoReflect.Descriptor instead.
+func (*TransactionBulkAddRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{5}
+}</span>
+
+func (x *TransactionBulkAddRequest) GetTransactions() []*TransactionAddRequest <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Transactions
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+type TransactionBulkAddResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Accepted      int64                  `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+        Rejected      int64                  `protobuf:"varint,2,opt,name=rejected,proto3" json:"rejected,omitempty"`
+        Errors        map[int64]string       `protobuf:"bytes,3,rep,name=errors,proto3" json:"errors,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionBulkAddResponse) Reset() <span class="cov0" title="0">{
+        *x = TransactionBulkAddResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[6]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionBulkAddResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionBulkAddResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionBulkAddResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[6]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionBulkAddResponse.ProtoReflect.Descriptor instead.
+func (*TransactionBulkAddResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{6}
+}</span>
+
+func (x *TransactionBulkAddResponse) GetAccepted() int64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Accepted
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *TransactionBulkAddResponse) GetRejected() int64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Rejected
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *TransactionBulkAddResponse) GetErrors() map[int64]string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Errors
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+type TransactionAddResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionAddResponse) Reset() <span class="cov0" title="0">{
+        *x = TransactionAddResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[7]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionAddResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionAddResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionAddResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[7]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionAddResponse.ProtoReflect.Descriptor instead.
+func (*TransactionAddResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{7}
+}</span>
+
+func (x *TransactionAddResponse) GetId() int64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Id
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+type TransactionGetRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionGetRequest) Reset() <span class="cov0" title="0">{
+        *x = TransactionGetRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[8]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionGetRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionGetRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionGetRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[8]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionGetRequest.ProtoReflect.Descriptor instead.
+func (*TransactionGetRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{8}
+}</span>
+
+func (x *TransactionGetRequest) GetId() int64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Id
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+type TransactionGetResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+        Amount        float32                `protobuf:"fixed32,2,opt,name=amount,proto3" json:"amount,omitempty"`
+        Category      string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`
+        Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+        Date          string                 `protobuf:"bytes,5,opt,name=date,proto3" json:"date,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionGetResponse) Reset() <span class="cov0" title="0">{
+        *x = TransactionGetResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[9]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionGetResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionGetResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionGetResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[9]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionGetResponse.ProtoReflect.Descriptor instead.
+func (*TransactionGetResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{9}
+}</span>
+
+func (x *TransactionGetResponse) GetId() int64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Id
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *TransactionGetResponse) GetAmount() float32 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Amount
+        }</span>
+        <span class="cov0" title="0">return 0</span>
+}
+
+func (x *TransactionGetResponse) GetCategory() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Category
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *TransactionGetResponse) GetDescription() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Description
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *TransactionGetResponse) GetDate() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Date
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type TransactionGetListResponse struct {
+        state         protoimpl.MessageState    `protogen:"open.v1"`
+        Transactions  []*TransactionGetResponse `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *TransactionGetListResponse) Reset() <span class="cov0" title="0">{
+        *x = TransactionGetListResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[10]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *TransactionGetListResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*TransactionGetListResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *TransactionGetListResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[10]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use TransactionGetListResponse.ProtoReflect.Descriptor instead.
+func (*TransactionGetListResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{10}
+}</span>
+
+func (x *TransactionGetListResponse) GetTransactions() []*TransactionGetResponse <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Transactions
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+type SummaryRequest struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        From          string                 `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+        To            string                 `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *SummaryRequest) Reset() <span class="cov0" title="0">{
+        *x = SummaryRequest{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[11]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *SummaryRequest) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*SummaryRequest) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *SummaryRequest) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[11]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use SummaryRequest.ProtoReflect.Descriptor instead.
+func (*SummaryRequest) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{11}
+}</span>
+
+func (x *SummaryRequest) GetFrom() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.From
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+func (x *SummaryRequest) GetTo() string <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.To
+        }</span>
+        <span class="cov0" title="0">return ""</span>
+}
+
+type SummaryResponse struct {
+        state         protoimpl.MessageState `protogen:"open.v1"`
+        Report        map[string]float64     `protobuf:"bytes,1,rep,name=report,proto3" json:"report,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed64,2,opt,name=value"`
+        CacheResult   bool                   `protobuf:"varint,2,opt,name=cache_result,json=cacheResult,proto3" json:"cache_result,omitempty"`
+        unknownFields protoimpl.UnknownFields
+        sizeCache     protoimpl.SizeCache
+}
+
+func (x *SummaryResponse) Reset() <span class="cov0" title="0">{
+        *x = SummaryResponse{}
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[12]
+        ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+        ms.StoreMessageInfo(mi)
+}</span>
+
+func (x *SummaryResponse) String() string <span class="cov0" title="0">{
+        return protoimpl.X.MessageStringOf(x)
+}</span>
+
+func (*SummaryResponse) ProtoMessage() {<span class="cov0" title="0">}</span>
+
+func (x *SummaryResponse) ProtoReflect() protoreflect.Message <span class="cov0" title="0">{
+        mi := &amp;file_ledger_v1_ledger_proto_msgTypes[12]
+        if x != nil </span><span class="cov0" title="0">{
+                ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+                if ms.LoadMessageInfo() == nil </span><span class="cov0" title="0">{
+                        ms.StoreMessageInfo(mi)
+                }</span>
+                <span class="cov0" title="0">return ms</span>
+        }
+        <span class="cov0" title="0">return mi.MessageOf(x)</span>
+}
+
+// Deprecated: Use SummaryResponse.ProtoReflect.Descriptor instead.
+func (*SummaryResponse) Descriptor() ([]byte, []int) <span class="cov0" title="0">{
+        return file_ledger_v1_ledger_proto_rawDescGZIP(), []int{12}
+}</span>
+
+func (x *SummaryResponse) GetReport() map[string]float64 <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.Report
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (x *SummaryResponse) GetCacheResult() bool <span class="cov0" title="0">{
+        if x != nil </span><span class="cov0" title="0">{
+                return x.CacheResult
+        }</span>
+        <span class="cov0" title="0">return false</span>
+}
+
+var File_ledger_v1_ledger_proto protoreflect.FileDescriptor
+
+const file_ledger_v1_ledger_proto_rawDesc = "" +
+        "\n" +
+        "\x16ledger/v1/ledger.proto\x12\tledger.v1\x1a\x1bgoogle/protobuf/empty.proto\"D\n" +
+        "\x10BudgetAddRequest\x12\x1a\n" +
+        "\bcategory\x18\x01 \x01(\tR\bcategory\x12\x14\n" +
+        "\x05limit\x18\x02 \x01(\x02R\x05limit\".\n" +
+        "\x10BudgetGetRequest\x12\x1a\n" +
+        "\bcategory\x18\x01 \x01(\tR\bcategory\"E\n" +
+        "\x11BudgetGetResponse\x12\x1a\n" +
+        "\bcategory\x18\x01 \x01(\tR\bcategory\x12\x14\n" +
+        "\x05limit\x18\x02 \x01(\x02R\x05limit\"O\n" +
+        "\x15BudgetGetListResponse\x126\n" +
+        "\abudgets\x18\x01 \x03(\v2\x1c.ledger.v1.BudgetGetResponseR\abudgets\"\x81\x01\n" +
+        "\x15TransactionAddRequest\x12\x16\n" +
+        "\x06amount\x18\x01 \x01(\x02R\x06amount\x12\x1a\n" +
+        "\bcategory\x18\x02 \x01(\tR\bcategory\x12 \n" +
+        "\vdescription\x18\x03 \x01(\tR\vdescription\x12\x12\n" +
+        "\x04date\x18\x04 \x01(\tR\x04date\"a\n" +
+        "\x19TransactionBulkAddRequest\x12D\n" +
+        "\ftransactions\x18\x01 \x03(\v2 .ledger.v1.TransactionAddRequestR\ftransactions\"\xda\x01\n" +
+        "\x1aTransactionBulkAddResponse\x12\x1a\n" +
+        "\baccepted\x18\x01 \x01(\x03R\baccepted\x12\x1a\n" +
+        "\brejected\x18\x02 \x01(\x03R\brejected\x12I\n" +
+        "\x06errors\x18\x03 \x03(\v21.ledger.v1.TransactionBulkAddResponse.ErrorsEntryR\x06errors\x1a9\n" +
+        "\vErrorsEntry\x12\x10\n" +
+        "\x03key\x18\x01 \x01(\x03R\x03key\x12\x14\n" +
+        "\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"(\n" +
+        "\x16TransactionAddResponse\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\x03R\x02id\"'\n" +
+        "\x15TransactionGetRequest\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\x03R\x02id\"\x92\x01\n" +
+        "\x16TransactionGetResponse\x12\x0e\n" +
+        "\x02id\x18\x01 \x01(\x03R\x02id\x12\x16\n" +
+        "\x06amount\x18\x02 \x01(\x02R\x06amount\x12\x1a\n" +
+        "\bcategory\x18\x03 \x01(\tR\bcategory\x12 \n" +
+        "\vdescription\x18\x04 \x01(\tR\vdescription\x12\x12\n" +
+        "\x04date\x18\x05 \x01(\tR\x04date\"c\n" +
+        "\x1aTransactionGetListResponse\x12E\n" +
+        "\ftransactions\x18\x01 \x03(\v2!.ledger.v1.TransactionGetResponseR\ftransactions\"4\n" +
+        "\x0eSummaryRequest\x12\x12\n" +
+        "\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
+        "\x02to\x18\x02 \x01(\tR\x02to\"\xaf\x01\n" +
+        "\x0fSummaryResponse\x12&gt;\n" +
+        "\x06report\x18\x01 \x03(\v2&amp;.ledger.v1.SummaryResponse.ReportEntryR\x06report\x12!\n" +
+        "\fcache_result\x18\x02 \x01(\bR\vcacheResult\x1a9\n" +
+        "\vReportEntry\x12\x10\n" +
+        "\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+        "\x05value\x18\x02 \x01(\x01R\x05value:\x028\x012\x8e\x05\n" +
+        "\rLedgerService\x12@\n" +
+        "\tBudgetAdd\x12\x1b.ledger.v1.BudgetAddRequest\x1a\x16.google.protobuf.Empty\x12F\n" +
+        "\tBudgetGet\x12\x1b.ledger.v1.BudgetGetRequest\x1a\x1c.ledger.v1.BudgetGetResponse\x12G\n" +
+        "\vBudgetsList\x12\x16.google.protobuf.Empty\x1a .ledger.v1.BudgetGetListResponse\x12U\n" +
+        "\x0eTransactionAdd\x12 .ledger.v1.TransactionAddRequest\x1a!.ledger.v1.TransactionAddResponse\x12U\n" +
+        "\x0eTransactionGet\x12 .ledger.v1.TransactionGetRequest\x1a!.ledger.v1.TransactionGetResponse\x12P\n" +
+        "\x0fTransactionList\x12\x16.google.protobuf.Empty\x1a%.ledger.v1.TransactionGetListResponse\x12F\n" +
+        "\rReportSummary\x12\x19.ledger.v1.SummaryRequest\x1a\x1a.ledger.v1.SummaryResponse\x12b\n" +
+        "\x13BulkAddTransactions\x12$.ledger.v1.TransactionBulkAddRequest\x1a%.ledger.v1.TransactionBulkAddResponseB\x1fZ\x1dgateway/internal/pb/ledger/v1b\x06proto3"
+
+var (
+        file_ledger_v1_ledger_proto_rawDescOnce sync.Once
+        file_ledger_v1_ledger_proto_rawDescData []byte
+)
+
+func file_ledger_v1_ledger_proto_rawDescGZIP() []byte <span class="cov0" title="0">{
+        file_ledger_v1_ledger_proto_rawDescOnce.Do(func() </span><span class="cov0" title="0">{
+                file_ledger_v1_ledger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ledger_v1_ledger_proto_rawDesc), len(file_ledger_v1_ledger_proto_rawDesc)))
+        }</span>)
+        <span class="cov0" title="0">return file_ledger_v1_ledger_proto_rawDescData</span>
+}
+
+var file_ledger_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_ledger_v1_ledger_proto_goTypes = []any{
+        (*BudgetAddRequest)(nil),           // 0: ledger.v1.BudgetAddRequest
+        (*BudgetGetRequest)(nil),           // 1: ledger.v1.BudgetGetRequest
+        (*BudgetGetResponse)(nil),          // 2: ledger.v1.BudgetGetResponse
+        (*BudgetGetListResponse)(nil),      // 3: ledger.v1.BudgetGetListResponse
+        (*TransactionAddRequest)(nil),      // 4: ledger.v1.TransactionAddRequest
+        (*TransactionBulkAddRequest)(nil),  // 5: ledger.v1.TransactionBulkAddRequest
+        (*TransactionBulkAddResponse)(nil), // 6: ledger.v1.TransactionBulkAddResponse
+        (*TransactionAddResponse)(nil),     // 7: ledger.v1.TransactionAddResponse
+        (*TransactionGetRequest)(nil),      // 8: ledger.v1.TransactionGetRequest
+        (*TransactionGetResponse)(nil),     // 9: ledger.v1.TransactionGetResponse
+        (*TransactionGetListResponse)(nil), // 10: ledger.v1.TransactionGetListResponse
+        (*SummaryRequest)(nil),             // 11: ledger.v1.SummaryRequest
+        (*SummaryResponse)(nil),            // 12: ledger.v1.SummaryResponse
+        nil,                                // 13: ledger.v1.TransactionBulkAddResponse.ErrorsEntry
+        nil,                                // 14: ledger.v1.SummaryResponse.ReportEntry
+        (*emptypb.Empty)(nil),              // 15: google.protobuf.Empty
+}
+var file_ledger_v1_ledger_proto_depIdxs = []int32{
+        2,  // 0: ledger.v1.BudgetGetListResponse.budgets:type_name -&gt; ledger.v1.BudgetGetResponse
+        4,  // 1: ledger.v1.TransactionBulkAddRequest.transactions:type_name -&gt; ledger.v1.TransactionAddRequest
+        13, // 2: ledger.v1.TransactionBulkAddResponse.errors:type_name -&gt; ledger.v1.TransactionBulkAddResponse.ErrorsEntry
+        9,  // 3: ledger.v1.TransactionGetListResponse.transactions:type_name -&gt; ledger.v1.TransactionGetResponse
+        14, // 4: ledger.v1.SummaryResponse.report:type_name -&gt; ledger.v1.SummaryResponse.ReportEntry
+        0,  // 5: ledger.v1.LedgerService.BudgetAdd:input_type -&gt; ledger.v1.BudgetAddRequest
+        1,  // 6: ledger.v1.LedgerService.BudgetGet:input_type -&gt; ledger.v1.BudgetGetRequest
+        15, // 7: ledger.v1.LedgerService.BudgetsList:input_type -&gt; google.protobuf.Empty
+        4,  // 8: ledger.v1.LedgerService.TransactionAdd:input_type -&gt; ledger.v1.TransactionAddRequest
+        8,  // 9: ledger.v1.LedgerService.TransactionGet:input_type -&gt; ledger.v1.TransactionGetRequest
+        15, // 10: ledger.v1.LedgerService.TransactionList:input_type -&gt; google.protobuf.Empty
+        11, // 11: ledger.v1.LedgerService.ReportSummary:input_type -&gt; ledger.v1.SummaryRequest
+        5,  // 12: ledger.v1.LedgerService.BulkAddTransactions:input_type -&gt; ledger.v1.TransactionBulkAddRequest
+        15, // 13: ledger.v1.LedgerService.BudgetAdd:output_type -&gt; google.protobuf.Empty
+        2,  // 14: ledger.v1.LedgerService.BudgetGet:output_type -&gt; ledger.v1.BudgetGetResponse
+        3,  // 15: ledger.v1.LedgerService.BudgetsList:output_type -&gt; ledger.v1.BudgetGetListResponse
+        7,  // 16: ledger.v1.LedgerService.TransactionAdd:output_type -&gt; ledger.v1.TransactionAddResponse
+        9,  // 17: ledger.v1.LedgerService.TransactionGet:output_type -&gt; ledger.v1.TransactionGetResponse
+        10, // 18: ledger.v1.LedgerService.TransactionList:output_type -&gt; ledger.v1.TransactionGetListResponse
+        12, // 19: ledger.v1.LedgerService.ReportSummary:output_type -&gt; ledger.v1.SummaryResponse
+        6,  // 20: ledger.v1.LedgerService.BulkAddTransactions:output_type -&gt; ledger.v1.TransactionBulkAddResponse
+        13, // [13:21] is the sub-list for method output_type
+        5,  // [5:13] is the sub-list for method input_type
+        5,  // [5:5] is the sub-list for extension type_name
+        5,  // [5:5] is the sub-list for extension extendee
+        0,  // [0:5] is the sub-list for field type_name
+}
+
+func init() <span class="cov0" title="0">{ file_ledger_v1_ledger_proto_init() }</span>
+func file_ledger_v1_ledger_proto_init() <span class="cov0" title="0">{
+        if File_ledger_v1_ledger_proto != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">type x struct{}
+        out := protoimpl.TypeBuilder{
+                File: protoimpl.DescBuilder{
+                        GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+                        RawDescriptor: unsafe.Slice(unsafe.StringData(file_ledger_v1_ledger_proto_rawDesc), len(file_ledger_v1_ledger_proto_rawDesc)),
+                        NumEnums:      0,
+                        NumMessages:   15,
+                        NumExtensions: 0,
+                        NumServices:   1,
+                },
+                GoTypes:           file_ledger_v1_ledger_proto_goTypes,
+                DependencyIndexes: file_ledger_v1_ledger_proto_depIdxs,
+                MessageInfos:      file_ledger_v1_ledger_proto_msgTypes,
+        }.Build()
+        File_ledger_v1_ledger_proto = out.File
+        file_ledger_v1_ledger_proto_goTypes = nil
+        file_ledger_v1_ledger_proto_depIdxs = nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">// Code generated by protoc-gen-go-grpc. DO NOT EDIT.
+// versions:
+// - protoc-gen-go-grpc v1.6.0
+// - protoc             v6.33.2
+// source: ledger/v1/ledger.proto
+
+package v1
+
+import (
+        context "context"
+        grpc "google.golang.org/grpc"
+        codes "google.golang.org/grpc/codes"
+        status "google.golang.org/grpc/status"
+        emptypb "google.golang.org/protobuf/types/known/emptypb"
+)
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.64.0 or later.
+const _ = grpc.SupportPackageIsVersion9
+
+const (
+        LedgerService_BudgetAdd_FullMethodName           = "/ledger.v1.LedgerService/BudgetAdd"
+        LedgerService_BudgetGet_FullMethodName           = "/ledger.v1.LedgerService/BudgetGet"
+        LedgerService_BudgetsList_FullMethodName         = "/ledger.v1.LedgerService/BudgetsList"
+        LedgerService_TransactionAdd_FullMethodName      = "/ledger.v1.LedgerService/TransactionAdd"
+        LedgerService_TransactionGet_FullMethodName      = "/ledger.v1.LedgerService/TransactionGet"
+        LedgerService_TransactionList_FullMethodName     = "/ledger.v1.LedgerService/TransactionList"
+        LedgerService_ReportSummary_FullMethodName       = "/ledger.v1.LedgerService/ReportSummary"
+        LedgerService_BulkAddTransactions_FullMethodName = "/ledger.v1.LedgerService/BulkAddTransactions"
+)
+
+// LedgerServiceClient is the client API for LedgerService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type LedgerServiceClient interface {
+        BudgetAdd(ctx context.Context, in *BudgetAddRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+        BudgetGet(ctx context.Context, in *BudgetGetRequest, opts ...grpc.CallOption) (*BudgetGetResponse, error)
+        BudgetsList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BudgetGetListResponse, error)
+        TransactionAdd(ctx context.Context, in *TransactionAddRequest, opts ...grpc.CallOption) (*TransactionAddResponse, error)
+        TransactionGet(ctx context.Context, in *TransactionGetRequest, opts ...grpc.CallOption) (*TransactionGetResponse, error)
+        TransactionList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TransactionGetListResponse, error)
+        ReportSummary(ctx context.Context, in *SummaryRequest, opts ...grpc.CallOption) (*SummaryResponse, error)
+        BulkAddTransactions(ctx context.Context, in *TransactionBulkAddRequest, opts ...grpc.CallOption) (*TransactionBulkAddResponse, error)
+}
+
+type ledgerServiceClient struct {
+        cc grpc.ClientConnInterface
+}
+
+func NewLedgerServiceClient(cc grpc.ClientConnInterface) LedgerServiceClient <span class="cov0" title="0">{
+        return &amp;ledgerServiceClient{cc}
+}</span>
+
+func (c *ledgerServiceClient) BudgetAdd(ctx context.Context, in *BudgetAddRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(emptypb.Empty)
+        err := c.cc.Invoke(ctx, LedgerService_BudgetAdd_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) BudgetGet(ctx context.Context, in *BudgetGetRequest, opts ...grpc.CallOption) (*BudgetGetResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(BudgetGetResponse)
+        err := c.cc.Invoke(ctx, LedgerService_BudgetGet_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) BudgetsList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*BudgetGetListResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(BudgetGetListResponse)
+        err := c.cc.Invoke(ctx, LedgerService_BudgetsList_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) TransactionAdd(ctx context.Context, in *TransactionAddRequest, opts ...grpc.CallOption) (*TransactionAddResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(TransactionAddResponse)
+        err := c.cc.Invoke(ctx, LedgerService_TransactionAdd_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) TransactionGet(ctx context.Context, in *TransactionGetRequest, opts ...grpc.CallOption) (*TransactionGetResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(TransactionGetResponse)
+        err := c.cc.Invoke(ctx, LedgerService_TransactionGet_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) TransactionList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TransactionGetListResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(TransactionGetListResponse)
+        err := c.cc.Invoke(ctx, LedgerService_TransactionList_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) ReportSummary(ctx context.Context, in *SummaryRequest, opts ...grpc.CallOption) (*SummaryResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(SummaryResponse)
+        err := c.cc.Invoke(ctx, LedgerService_ReportSummary_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (c *ledgerServiceClient) BulkAddTransactions(ctx context.Context, in *TransactionBulkAddRequest, opts ...grpc.CallOption) (*TransactionBulkAddResponse, error) <span class="cov0" title="0">{
+        cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+        out := new(TransactionBulkAddResponse)
+        err := c.cc.Invoke(ctx, LedgerService_BulkAddTransactions_FullMethodName, in, out, cOpts...)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+// LedgerServiceServer is the server API for LedgerService service.
+// All implementations must embed UnimplementedLedgerServiceServer
+// for forward compatibility.
+type LedgerServiceServer interface {
+        BudgetAdd(context.Context, *BudgetAddRequest) (*emptypb.Empty, error)
+        BudgetGet(context.Context, *BudgetGetRequest) (*BudgetGetResponse, error)
+        BudgetsList(context.Context, *emptypb.Empty) (*BudgetGetListResponse, error)
+        TransactionAdd(context.Context, *TransactionAddRequest) (*TransactionAddResponse, error)
+        TransactionGet(context.Context, *TransactionGetRequest) (*TransactionGetResponse, error)
+        TransactionList(context.Context, *emptypb.Empty) (*TransactionGetListResponse, error)
+        ReportSummary(context.Context, *SummaryRequest) (*SummaryResponse, error)
+        BulkAddTransactions(context.Context, *TransactionBulkAddRequest) (*TransactionBulkAddResponse, error)
+        mustEmbedUnimplementedLedgerServiceServer()
+}
+
+// UnimplementedLedgerServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedLedgerServiceServer struct{}
+
+func (UnimplementedLedgerServiceServer) BudgetAdd(context.Context, *BudgetAddRequest) (*emptypb.Empty, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method BudgetAdd not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) BudgetGet(context.Context, *BudgetGetRequest) (*BudgetGetResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method BudgetGet not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) BudgetsList(context.Context, *emptypb.Empty) (*BudgetGetListResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method BudgetsList not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) TransactionAdd(context.Context, *TransactionAddRequest) (*TransactionAddResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method TransactionAdd not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) TransactionGet(context.Context, *TransactionGetRequest) (*TransactionGetResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method TransactionGet not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) TransactionList(context.Context, *emptypb.Empty) (*TransactionGetListResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method TransactionList not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) ReportSummary(context.Context, *SummaryRequest) (*SummaryResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method ReportSummary not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) BulkAddTransactions(context.Context, *TransactionBulkAddRequest) (*TransactionBulkAddResponse, error) <span class="cov0" title="0">{
+        return nil, status.Error(codes.Unimplemented, "method BulkAddTransactions not implemented")
+}</span>
+func (UnimplementedLedgerServiceServer) mustEmbedUnimplementedLedgerServiceServer() {<span class="cov0" title="0">}</span>
+func (UnimplementedLedgerServiceServer) testEmbeddedByValue()                       {<span class="cov0" title="0">}</span>
+
+// UnsafeLedgerServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LedgerServiceServer will
+// result in compilation errors.
+type UnsafeLedgerServiceServer interface {
+        mustEmbedUnimplementedLedgerServiceServer()
+}
+
+func RegisterLedgerServiceServer(s grpc.ServiceRegistrar, srv LedgerServiceServer) <span class="cov0" title="0">{
+        // If the following call panics, it indicates UnimplementedLedgerServiceServer was
+        // embedded by pointer and is nil.  This will cause panics if an
+        // unimplemented method is ever invoked, so we test this at initialization
+        // time to prevent it from happening at runtime later due to I/O.
+        if t, ok := srv.(interface{ testEmbeddedByValue() }); ok </span><span class="cov0" title="0">{
+                t.testEmbeddedByValue()
+        }</span>
+        <span class="cov0" title="0">s.RegisterService(&amp;LedgerService_ServiceDesc, srv)</span>
+}
+
+func _LedgerService_BudgetAdd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(BudgetAddRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetAdd(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_BudgetAdd_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetAdd(ctx, req.(*BudgetAddRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_BudgetGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(BudgetGetRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetGet(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_BudgetGet_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetGet(ctx, req.(*BudgetGetRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_BudgetsList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(emptypb.Empty)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetsList(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_BudgetsList_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BudgetsList(ctx, req.(*emptypb.Empty))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_TransactionAdd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(TransactionAddRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionAdd(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_TransactionAdd_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionAdd(ctx, req.(*TransactionAddRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_TransactionGet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(TransactionGetRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionGet(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_TransactionGet_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionGet(ctx, req.(*TransactionGetRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_TransactionList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(emptypb.Empty)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionList(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_TransactionList_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).TransactionList(ctx, req.(*emptypb.Empty))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_ReportSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(SummaryRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).ReportSummary(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_ReportSummary_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).ReportSummary(ctx, req.(*SummaryRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+func _LedgerService_BulkAddTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) <span class="cov0" title="0">{
+        in := new(TransactionBulkAddRequest)
+        if err := dec(in); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">if interceptor == nil </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BulkAddTransactions(ctx, in)
+        }</span>
+        <span class="cov0" title="0">info := &amp;grpc.UnaryServerInfo{
+                Server:     srv,
+                FullMethod: LedgerService_BulkAddTransactions_FullMethodName,
+        }
+        handler := func(ctx context.Context, req interface{}) (interface{}, error) </span><span class="cov0" title="0">{
+                return srv.(LedgerServiceServer).BulkAddTransactions(ctx, req.(*TransactionBulkAddRequest))
+        }</span>
+        <span class="cov0" title="0">return interceptor(ctx, in, info, handler)</span>
+}
+
+// LedgerService_ServiceDesc is the grpc.ServiceDesc for LedgerService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LedgerService_ServiceDesc = grpc.ServiceDesc{
+        ServiceName: "ledger.v1.LedgerService",
+        HandlerType: (*LedgerServiceServer)(nil),
+        Methods: []grpc.MethodDesc{
+                {
+                        MethodName: "BudgetAdd",
+                        Handler:    _LedgerService_BudgetAdd_Handler,
+                },
+                {
+                        MethodName: "BudgetGet",
+                        Handler:    _LedgerService_BudgetGet_Handler,
+                },
+                {
+                        MethodName: "BudgetsList",
+                        Handler:    _LedgerService_BudgetsList_Handler,
+                },
+                {
+                        MethodName: "TransactionAdd",
+                        Handler:    _LedgerService_TransactionAdd_Handler,
+                },
+                {
+                        MethodName: "TransactionGet",
+                        Handler:    _LedgerService_TransactionGet_Handler,
+                },
+                {
+                        MethodName: "TransactionList",
+                        Handler:    _LedgerService_TransactionList_Handler,
+                },
+                {
+                        MethodName: "ReportSummary",
+                        Handler:    _LedgerService_ReportSummary_Handler,
+                },
+                {
+                        MethodName: "BulkAddTransactions",
+                        Handler:    _LedgerService_BulkAddTransactions_Handler,
+                },
+        },
+        Streams:  []grpc.StreamDesc{},
+        Metadata: "ledger/v1/ledger.proto",
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package httpserver
+
+import (
+        "context"
+        "errors"
+        "gateway/internal/config"
+        nethttp "net/http"
+        "time"
+)
+
+type Server struct {
+        srv             *nethttp.Server
+        shutdownTimeout time.Duration
+}
+
+func New(cfg config.HTTPConfig, handler nethttp.Handler) *Server <span class="cov0" title="0">{
+        return &amp;Server{
+                srv: &amp;nethttp.Server{
+                        Addr:         cfg.Address,
+                        Handler:      handler,
+                        ReadTimeout:  cfg.ReadTimeout,
+                        WriteTimeout: cfg.WriteTimeout,
+                },
+                shutdownTimeout: cfg.ShutdownTimeout,
+        }
+}</span>
+
+func (s *Server) Start() error <span class="cov0" title="0">{
+        if s == nil || s.srv == nil </span><span class="cov0" title="0">{
+                return errors.New("http server is not initialized")
+        }</span>
+        <span class="cov0" title="0">if err := s.srv.ListenAndServe(); err != nil &amp;&amp; !errors.Is(err, nethttp.ErrServerClosed) </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (s *Server) Shutdown(ctx context.Context) error <span class="cov0" title="0">{
+        if s == nil || s.srv == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">timeout := s.shutdownTimeout
+        if timeout &lt;= 0 </span><span class="cov0" title="0">{
+                timeout = 5 * time.Second
+        }</span>
+        <span class="cov0" title="0">ctx, cancel := context.WithTimeout(ctx, timeout)
+        defer cancel()
+        return s.srv.Shutdown(ctx)</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package service
+
+import (
+        "context"
+        "gateway/internal/model"
+        ledgerv1 "gateway/internal/pb/ledger/v1"
+)
+
+type LedgerGatewayService interface {
+        BudgetAdd(ctx context.Context, req model.BudgetAdd) error
+        BudgetGet(ctx context.Context, req model.BudgetGet) (*model.BudgetGetResponse, error)
+        BudgetList(ctx context.Context) ([]model.BudgetGetResponse, error)
+        TransactionAdd(ctx context.Context, req model.TrasnactionAdd) (*model.TransactionAddResponse, error)
+        TransactionGet(ctx context.Context, req model.TransactionGet) (*model.TransactionGetResponse, error)
+        TransactionList(ctx context.Context) ([]model.TransactionGetResponse, error)
+        TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error)
+        ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error)
+}
+
+type ledgerGatewayService struct {
+        client ledgerv1.LedgerServiceClient
+}
+
+func NewLedgerGatewayService(client ledgerv1.LedgerServiceClient) LedgerGatewayService <span class="cov0" title="0">{
+        if client == nil </span><span class="cov0" title="0">{
+                panic("budget gateway service requires gRPC client")</span>
+        }
+        <span class="cov0" title="0">return &amp;ledgerGatewayService{client: client}</span>
+}
+
+func (l *ledgerGatewayService) BudgetAdd(ctx context.Context, req model.BudgetAdd) error <span class="cov0" title="0">{
+        _, err := l.client.BudgetAdd(ctx, &amp;ledgerv1.BudgetAddRequest{
+                Category: req.Category,
+                Limit:    float32(req.Limit),
+        })
+        return err
+}</span>
+
+func (l *ledgerGatewayService) BudgetGet(ctx context.Context, req model.BudgetGet) (*model.BudgetGetResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.BudgetGet(ctx, &amp;ledgerv1.BudgetGetRequest{
+                Category: req.Category,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;model.BudgetGetResponse{
+                Category: resp.Category,
+                Limit:    float64(resp.Limit),
+        }, nil</span>
+}
+
+func (l *ledgerGatewayService) BudgetList(ctx context.Context) ([]model.BudgetGetResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.BudgetsList(ctx, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">out := make([]model.BudgetGetResponse, 0, len(resp.GetBudgets()))
+        for _, r := range resp.GetBudgets() </span><span class="cov0" title="0">{
+                if r == nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">out = append(out, model.BudgetGetResponse{
+                        Category: r.Category,
+                        Limit:    float64(r.Limit),
+                })</span>
+        }
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (l *ledgerGatewayService) TransactionAdd(ctx context.Context, req model.TrasnactionAdd) (*model.TransactionAddResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.TransactionAdd(ctx, &amp;ledgerv1.TransactionAddRequest{
+                Amount:      float32(req.Amount),
+                Category:    req.Category,
+                Description: req.Description,
+                Date:        req.Date,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;model.TransactionAddResponse{
+                Id: resp.GetId(),
+        }, nil</span>
+}
+
+func (l *ledgerGatewayService) TransactionGet(ctx context.Context, req model.TransactionGet) (*model.TransactionGetResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.TransactionGet(ctx, &amp;ledgerv1.TransactionGetRequest{
+                Id: req.Id,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;model.TransactionGetResponse{
+                Id:          resp.GetId(),
+                Amount:      float64(resp.GetAmount()),
+                Category:    resp.GetCategory(),
+                Description: resp.GetDescription(),
+                Date:        resp.GetDate(),
+        }, nil</span>
+}
+
+func (l *ledgerGatewayService) TransactionList(ctx context.Context) ([]model.TransactionGetResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.TransactionList(ctx, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">out := make([]model.TransactionGetResponse, 0, len(resp.GetTransactions()))
+        for _, tr := range resp.GetTransactions() </span><span class="cov0" title="0">{
+                if tr == nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">out = append(out, model.TransactionGetResponse{
+                        Id:          tr.GetId(),
+                        Amount:      float64(tr.GetAmount()),
+                        Category:    tr.GetCategory(),
+                        Description: tr.GetDescription(),
+                        Date:        tr.GetDate(),
+                })</span>
+        }
+        <span class="cov0" title="0">return out, nil</span>
+}
+
+func (l *ledgerGatewayService) ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error) <span class="cov0" title="0">{
+        resp, err := l.client.ReportSummary(ctx, &amp;ledgerv1.SummaryRequest{From: req.From, To: req.To})
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;model.ReportSummaryResponse{Report: resp.Report, CacheResult: resp.CacheResult}, nil</span>
+}
+
+func (l *ledgerGatewayService) TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error) <span class="cov0" title="0">{
+        trs := make([]*ledgerv1.TransactionAddRequest, 0, len(req.Transactions))
+        for _, transaction := range req.Transactions </span><span class="cov0" title="0">{
+                trs = append(trs, &amp;ledgerv1.TransactionAddRequest{
+                        Amount:      float32(transaction.Amount),
+                        Category:    transaction.Category,
+                        Date:        transaction.Date,
+                        Description: transaction.Description,
+                })
+        }</span>
+        <span class="cov0" title="0">resp, err := l.client.BulkAddTransactions(ctx, &amp;ledgerv1.TransactionBulkAddRequest{Transactions: trs})
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;model.TransactionBulkAddResponse{
+                Accepted: resp.Accepted,
+                Rejected: resp.Rejected,
+                Errors:   resp.Errors,
+        }, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

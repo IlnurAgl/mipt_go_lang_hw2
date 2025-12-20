@@ -3,23 +3,38 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"ledger/internal/domain"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type SummaryPgRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	cache *redis.Client
 }
 
-func NewSummaryPgRepository(db *sql.DB) *SummaryPgRepository {
+func NewSummaryPgRepository(db *sql.DB, cache *redis.Client) *SummaryPgRepository {
 	return &SummaryPgRepository{
-		db: db,
+		db:    db,
+		cache: cache,
 	}
 }
 
-func (r *SummaryPgRepository) GetSummary(from string, to string, ctx context.Context) (*domain.Summary, error) {
+func (r *SummaryPgRepository) GetSummary(ctx context.Context, from string, to string) (*domain.Summary, error) {
+	key := "report:summary:" + from + ":" + to
+	val, err := r.cache.Get(ctx, key).Result()
+	if err == nil {
+		println("Get result from cache")
+		var result map[string]float64
+		if err := json.Unmarshal([]byte(val), &result); err == nil {
+			return &domain.Summary{Categories: result, CacheResult: true}, nil
+		}
+	}
+	println("Get result from db")
 	rows, err := r.db.QueryContext(ctx, "SELECT distinct category FROM expenses WHERE date BETWEEN $1 AND $2", from, to)
 	if err != nil {
 		return nil, err
@@ -69,5 +84,8 @@ func (r *SummaryPgRepository) GetSummary(from string, to string, ctx context.Con
 	}
 	wg.Wait()
 	done <- true
-	return &domain.Summary{Categories: result}, nil
+	data, _ := json.Marshal(result)
+	print("save result to cache")
+	r.cache.Set(ctx, key, data, 30*time.Second)
+	return &domain.Summary{Categories: result, CacheResult: false}, nil
 }

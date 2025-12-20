@@ -20,12 +20,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LedgerService_BudgetAdd_FullMethodName       = "/ledger.v1.LedgerService/BudgetAdd"
-	LedgerService_BudgetGet_FullMethodName       = "/ledger.v1.LedgerService/BudgetGet"
-	LedgerService_BudgetsList_FullMethodName     = "/ledger.v1.LedgerService/BudgetsList"
-	LedgerService_TransactionAdd_FullMethodName  = "/ledger.v1.LedgerService/TransactionAdd"
-	LedgerService_TransactionGet_FullMethodName  = "/ledger.v1.LedgerService/TransactionGet"
-	LedgerService_TransactionList_FullMethodName = "/ledger.v1.LedgerService/TransactionList"
+	LedgerService_BudgetAdd_FullMethodName           = "/ledger.v1.LedgerService/BudgetAdd"
+	LedgerService_BudgetGet_FullMethodName           = "/ledger.v1.LedgerService/BudgetGet"
+	LedgerService_BudgetsList_FullMethodName         = "/ledger.v1.LedgerService/BudgetsList"
+	LedgerService_TransactionAdd_FullMethodName      = "/ledger.v1.LedgerService/TransactionAdd"
+	LedgerService_TransactionGet_FullMethodName      = "/ledger.v1.LedgerService/TransactionGet"
+	LedgerService_TransactionList_FullMethodName     = "/ledger.v1.LedgerService/TransactionList"
+	LedgerService_ReportSummary_FullMethodName       = "/ledger.v1.LedgerService/ReportSummary"
+	LedgerService_BulkAddTransactions_FullMethodName = "/ledger.v1.LedgerService/BulkAddTransactions"
 )
 
 // LedgerServiceClient is the client API for LedgerService service.
@@ -38,6 +40,8 @@ type LedgerServiceClient interface {
 	TransactionAdd(ctx context.Context, in *TransactionAddRequest, opts ...grpc.CallOption) (*TransactionAddResponse, error)
 	TransactionGet(ctx context.Context, in *TransactionGetRequest, opts ...grpc.CallOption) (*TransactionGetResponse, error)
 	TransactionList(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*TransactionGetListResponse, error)
+	ReportSummary(ctx context.Context, in *SummaryRequest, opts ...grpc.CallOption) (*SummaryResponse, error)
+	BulkAddTransactions(ctx context.Context, in *TransactionBulkAddRequest, opts ...grpc.CallOption) (*TransactionBulkAddResponse, error)
 }
 
 type ledgerServiceClient struct {
@@ -108,6 +112,26 @@ func (c *ledgerServiceClient) TransactionList(ctx context.Context, in *emptypb.E
 	return out, nil
 }
 
+func (c *ledgerServiceClient) ReportSummary(ctx context.Context, in *SummaryRequest, opts ...grpc.CallOption) (*SummaryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SummaryResponse)
+	err := c.cc.Invoke(ctx, LedgerService_ReportSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *ledgerServiceClient) BulkAddTransactions(ctx context.Context, in *TransactionBulkAddRequest, opts ...grpc.CallOption) (*TransactionBulkAddResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransactionBulkAddResponse)
+	err := c.cc.Invoke(ctx, LedgerService_BulkAddTransactions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LedgerServiceServer is the server API for LedgerService service.
 // All implementations must embed UnimplementedLedgerServiceServer
 // for forward compatibility.
@@ -118,6 +142,8 @@ type LedgerServiceServer interface {
 	TransactionAdd(context.Context, *TransactionAddRequest) (*TransactionAddResponse, error)
 	TransactionGet(context.Context, *TransactionGetRequest) (*TransactionGetResponse, error)
 	TransactionList(context.Context, *emptypb.Empty) (*TransactionGetListResponse, error)
+	ReportSummary(context.Context, *SummaryRequest) (*SummaryResponse, error)
+	BulkAddTransactions(context.Context, *TransactionBulkAddRequest) (*TransactionBulkAddResponse, error)
 	mustEmbedUnimplementedLedgerServiceServer()
 }
 
@@ -145,6 +171,12 @@ func (UnimplementedLedgerServiceServer) TransactionGet(context.Context, *Transac
 }
 func (UnimplementedLedgerServiceServer) TransactionList(context.Context, *emptypb.Empty) (*TransactionGetListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TransactionList not implemented")
+}
+func (UnimplementedLedgerServiceServer) ReportSummary(context.Context, *SummaryRequest) (*SummaryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReportSummary not implemented")
+}
+func (UnimplementedLedgerServiceServer) BulkAddTransactions(context.Context, *TransactionBulkAddRequest) (*TransactionBulkAddResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BulkAddTransactions not implemented")
 }
 func (UnimplementedLedgerServiceServer) mustEmbedUnimplementedLedgerServiceServer() {}
 func (UnimplementedLedgerServiceServer) testEmbeddedByValue()                       {}
@@ -275,6 +307,42 @@ func _LedgerService_TransactionList_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LedgerService_ReportSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LedgerServiceServer).ReportSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LedgerService_ReportSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LedgerServiceServer).ReportSummary(ctx, req.(*SummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LedgerService_BulkAddTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransactionBulkAddRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LedgerServiceServer).BulkAddTransactions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LedgerService_BulkAddTransactions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LedgerServiceServer).BulkAddTransactions(ctx, req.(*TransactionBulkAddRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LedgerService_ServiceDesc is the grpc.ServiceDesc for LedgerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -305,6 +373,14 @@ var LedgerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TransactionList",
 			Handler:    _LedgerService_TransactionList_Handler,
+		},
+		{
+			MethodName: "ReportSummary",
+			Handler:    _LedgerService_ReportSummary_Handler,
+		},
+		{
+			MethodName: "BulkAddTransactions",
+			Handler:    _LedgerService_BulkAddTransactions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

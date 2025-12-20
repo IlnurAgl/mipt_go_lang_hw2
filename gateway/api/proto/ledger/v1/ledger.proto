@@ -12,6 +12,8 @@ service LedgerService {
     rpc TransactionAdd(TransactionAddRequest) returns (TransactionAddResponse);
     rpc TransactionGet(TransactionGetRequest) returns (TransactionGetResponse);
     rpc TransactionList(google.protobuf.Empty) returns (TransactionGetListResponse);
+    rpc ReportSummary(SummaryRequest) returns (SummaryResponse);
+    rpc BulkAddTransactions(TransactionBulkAddRequest) returns (TransactionBulkAddResponse);
 }
 
 message BudgetAddRequest {
@@ -39,6 +41,16 @@ message TransactionAddRequest {
     string date = 4;
 }
 
+message TransactionBulkAddRequest {
+    repeated TransactionAddRequest transactions = 1;
+}
+
+message TransactionBulkAddResponse {
+    int64 accepted = 1;
+    int64 rejected = 2;
+    map<int64, string> errors = 3;
+}
+
 message TransactionAddResponse {
     int64 id = 1;
 }
@@ -57,4 +69,14 @@ message TransactionGetResponse {
 
 message TransactionGetListResponse {
     repeated TransactionGetResponse transactions = 1;
+}
+
+message SummaryRequest {
+    string from = 1;
+    string to = 2;
+}
+
+message SummaryResponse {
+    map<string, double> report = 1;
+    bool cache_result = 2;
 }

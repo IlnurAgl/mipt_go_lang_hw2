@@ -1,0 +1,110 @@
+services:
+  postgres-ledger:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_ledger_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-auth:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ledger:
+    build:
+      context: ./ledger
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres-ledger:5432/ledger?sslmode=disable
+      REDIS_ADDR: redis:6379
+      GRPC_PORT: 50051
+    depends_on:
+      postgres-ledger:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc-health-probe", "-addr=localhost:50051"]
+      interval: 3s
+      timeout: 1s
+      retries: 3
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    ports:
+      - "50052:50052"
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres-auth:5432/auth?sslmode=disable
+      JWT_SECRET: test_token
+      GRPC_PORT: 50052
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc-health-probe", "-addr=localhost:50052"]
+      interval: 3s
+      timeout: 1s
+      retries: 3
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_ADDRESS: :8080
+      GRPC_ADDRESS: ledger:50051
+      AUTH_GRPC_ADDR: auth:50052
+    depends_on:
+      ledger:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 3s
+      timeout: 1s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres_ledger_data:
+  postgres_auth_data:

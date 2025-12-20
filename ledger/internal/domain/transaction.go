@@ -28,4 +28,5 @@ type TransactionRepository interface {
 	GetTransaction(id int64, ctx context.Context) (*Transaction, error)
 	ListTransactions(ctx context.Context) ([]Transaction, error)
 	GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error)
+	GetAmountTransactionByCategoryAndMonth(ctx context.Context, category string, date string) (float64, error)
 }

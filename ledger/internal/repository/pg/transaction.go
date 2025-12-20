@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"ledger/internal/domain"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type TransactionPgRepository struct {
@@ -19,6 +22,42 @@ func NewTransactionPgRepository(db *sql.DB) *TransactionPgRepository {
 func (r *TransactionPgRepository) GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error) {
 	var totalAmount float64
 	err := r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1", category).Scan(&totalAmount)
+	if err != nil {
+		return 0, err
+	}
+	return totalAmount, nil
+}
+
+func (r *TransactionPgRepository) GetAmountTransactionByCategoryAndMonth(ctx context.Context, category string, date string) (float64, error) {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return 0, err
+	}
+	year := t.Year()
+	month := int(t.Month())
+	var currentMonthStart strings.Builder
+	currentMonthStart.WriteString(strconv.Itoa(year))
+	currentMonthStart.WriteString("-")
+	currentMonthStart.WriteString(strconv.Itoa(month))
+	currentMonthStart.WriteString("-")
+	currentMonthStart.WriteString("01")
+	var nextMonthStart strings.Builder
+	if month == 12 {
+		nextMonthStart.WriteString(strconv.Itoa(year + 1))
+		nextMonthStart.WriteString("-")
+		nextMonthStart.WriteString("01")
+		nextMonthStart.WriteString("-")
+		nextMonthStart.WriteString("01")
+	} else {
+		nextMonthStart.WriteString(strconv.Itoa(year))
+		nextMonthStart.WriteString("-")
+		nextMonthStart.WriteString(strconv.Itoa(month + 1))
+		nextMonthStart.WriteString("-")
+		nextMonthStart.WriteString("01")
+	}
+
+	var totalAmount float64
+	err = r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1 AND date between $2 and $3", category, currentMonthStart.String(), nextMonthStart.String()).Scan(&totalAmount)
 	if err != nil {
 		return 0, err
 	}

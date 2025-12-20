@@ -8,11 +8,24 @@ import (
 	"sync"
 )
 
+type LedgerService interface {
+	BudgetAdd(ctx context.Context, budget *domain.Budget) error
+	BudgetGet(ctx context.Context, category string) (*domain.Budget, error)
+	BudgetsList(ctx context.Context) (map[string]domain.Budget, error)
+	TransactionAdd(ctx context.Context, transaction *domain.Transaction) (int64, error)
+	TransactionGet(ctx context.Context, id int64) (*domain.Transaction, error)
+	TransactionsList(ctx context.Context) ([]domain.Transaction, error)
+	BulkAddTransactions(ctx context.Context, transactions []domain.Transaction, numWorkers int) (*BulkTransactionResult, error)
+	GetReportSummary(ctx context.Context, from string, to string) (*domain.Summary, error)
+}
+
 type LedgerServiceImpl struct {
 	budgetRepository      domain.BudgetRepository
 	transactionRepository domain.TransactionRepository
 	summaryRepository     domain.SummaryRepository
 }
+
+var _ LedgerService = (*LedgerServiceImpl)(nil)
 
 func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepository domain.TransactionRepository, summaryRepository domain.SummaryRepository) *LedgerServiceImpl {
 	return &LedgerServiceImpl{
@@ -63,7 +76,7 @@ func (l *LedgerServiceImpl) TransactionAdd(ctx context.Context, transaction *dom
 	if err != nil {
 		return 0, err
 	}
-	amount, err := l.transactionRepository.GetAmountTransactionByCategory(transaction.Category, ctx)
+	amount, err := l.transactionRepository.GetAmountTransactionByCategoryAndMonth(ctx, transaction.Category, transaction.Date)
 	if err != nil {
 		return 0, err
 	}
@@ -93,14 +106,14 @@ func (l *LedgerServiceImpl) TransactionsList(ctx context.Context) ([]domain.Tran
 	return transactions, nil
 }
 
-func (l *LedgerServiceImpl) GetReportSummary(from string, to string, ctx context.Context) (*domain.Summary, error) {
-	return l.summaryRepository.GetSummary(from, to, ctx)
+func (l *LedgerServiceImpl) GetReportSummary(ctx context.Context, from string, to string) (*domain.Summary, error) {
+	return l.summaryRepository.GetSummary(ctx, from, to)
 }
 
 type Result struct {
 	success  bool
 	errorStr string
-	index    int
+	index    int64
 }
 
 func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<- Result, ctx context.Context, wg *sync.WaitGroup) {
@@ -149,19 +162,19 @@ func (r *LedgerServiceImpl) worker(id int, jobs <-chan WorkerJob, results chan<-
 	}
 }
 
-type BulkResult struct {
+type BulkTransactionResult struct {
 	Accepted int64
 	Rejected int64
-	Errors   map[int]string
+	Errors   map[int64]string
 	m        sync.Mutex
 }
 
 type WorkerJob struct {
-	index       int
+	index       int64
 	transaction domain.Transaction
 }
 
-func (r *LedgerServiceImpl) BulkAddTransactions(transactions []domain.Transaction, numWorkers int, ctx context.Context) (*BulkResult, error) {
+func (r *LedgerServiceImpl) BulkAddTransactions(ctx context.Context, transactions []domain.Transaction, numWorkers int) (*BulkTransactionResult, error) {
 	jobs := make(chan WorkerJob, len(transactions))
 	results := make(chan Result, len(transactions))
 	var wg sync.WaitGroup
@@ -172,7 +185,7 @@ func (r *LedgerServiceImpl) BulkAddTransactions(transactions []domain.Transactio
 
 	go func() {
 		for j := 0; j < len(transactions); j++ {
-			jobs <- WorkerJob{index: j, transaction: transactions[j]}
+			jobs <- WorkerJob{index: int64(j), transaction: transactions[j]}
 		}
 		close(jobs)
 	}()
@@ -181,8 +194,8 @@ func (r *LedgerServiceImpl) BulkAddTransactions(transactions []domain.Transactio
 		wg.Wait()
 		close(results)
 	}()
-	res := BulkResult{Accepted: 0, Rejected: 0}
-	res.Errors = make(map[int]string)
+	res := BulkTransactionResult{Accepted: 0, Rejected: 0}
+	res.Errors = make(map[int64]string)
 
 	for result := range results {
 		res.m.Lock()

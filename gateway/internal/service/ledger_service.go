@@ -13,6 +13,8 @@ type LedgerGatewayService interface {
 	TransactionAdd(ctx context.Context, req model.TrasnactionAdd) (*model.TransactionAddResponse, error)
 	TransactionGet(ctx context.Context, req model.TransactionGet) (*model.TransactionGetResponse, error)
 	TransactionList(ctx context.Context) ([]model.TransactionGetResponse, error)
+	TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error)
+	ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error)
 }
 
 type ledgerGatewayService struct {
@@ -115,4 +117,33 @@ func (l *ledgerGatewayService) TransactionList(ctx context.Context) ([]model.Tra
 		})
 	}
 	return out, nil
+}
+
+func (l *ledgerGatewayService) ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error) {
+	resp, err := l.client.ReportSummary(ctx, &ledgerv1.SummaryRequest{From: req.From, To: req.To})
+	if err != nil {
+		return nil, err
+	}
+	return &model.ReportSummaryResponse{Report: resp.Report, CacheResult: resp.CacheResult}, nil
+}
+
+func (l *ledgerGatewayService) TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error) {
+	trs := make([]*ledgerv1.TransactionAddRequest, 0, len(req.Transactions))
+	for _, transaction := range req.Transactions {
+		trs = append(trs, &ledgerv1.TransactionAddRequest{
+			Amount:      float32(transaction.Amount),
+			Category:    transaction.Category,
+			Date:        transaction.Date,
+			Description: transaction.Description,
+		})
+	}
+	resp, err := l.client.BulkAddTransactions(ctx, &ledgerv1.TransactionBulkAddRequest{Transactions: trs})
+	if err != nil {
+		return nil, err
+	}
+	return &model.TransactionBulkAddResponse{
+		Accepted: resp.Accepted,
+		Rejected: resp.Rejected,
+		Errors:   resp.Errors,
+	}, nil
 }

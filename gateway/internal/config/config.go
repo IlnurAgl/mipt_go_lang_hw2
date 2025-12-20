@@ -13,7 +13,8 @@ type HTTPConfig struct {
 }
 
 type GRPCConfig struct {
-	Address string
+	LedgerAddress string
+	AuthAddress   string
 }
 
 type Config struct {
@@ -30,7 +31,8 @@ func Load() Config {
 			ShutdownTimeout: 5 * time.Second,
 		},
 		GRPC: GRPCConfig{
-			Address: getEnv("GRPC_ADDRESS", "127.0.0.1:9090"),
+			LedgerAddress: getEnv("GRPC_ADDRESS", "127.0.0.1:9090"),
+			AuthAddress:   getEnv("AUTH_GRPC_ADDR", "127.0.0.1:50002"),
 		},
 	}
 }
