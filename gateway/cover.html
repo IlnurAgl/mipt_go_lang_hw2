@@ -447,7 +447,6 @@ func (l *LedgerHandler) TransactionExportCSV(c *gin.Context) <span class="cov8" 
         c.Header("Content-Disposition", "attachment; filename=transactions.csv")
         writer := csv.NewWriter(c.Writer)
         defer writer.Flush()
-        // Write header
         if err := writer.Write([]string{"ID", "Amount", "Category", "Description", "Date"}); err != nil </span><span class="cov0" title="0">{
                 c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write CSV"})
                 return

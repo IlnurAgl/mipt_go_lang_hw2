@@ -71,7 +71,7 @@
 				
 				<option value="file7">ledger/internal/pb/ledger/v1/ledger_grpc.pb.go (0.0%)</option>
 				
-				<option value="file8">ledger/internal/repository/pg/budget.go (87.5%)</option>
+				<option value="file8">ledger/internal/repository/pg/budget.go (91.9%)</option>
 				
 				<option value="file9">ledger/internal/repository/pg/summary.go (72.9%)</option>
 				
@@ -155,16 +155,14 @@ func main() <span class="cov0" title="0">{
         <span class="cov0" title="0">defer redisConn.Close()
 
         ledgerService := service.NewLedgerService(
-                pg.NewBudgetPgRepository(dbConn),
+                pg.NewBudgetPgRepository(dbConn, redisConn),
                 pg.NewTransactionPgRepository(dbConn),
                 pg.NewSummaryPgRepository(dbConn, redisConn),
         )
         pb.RegisterLedgerServiceServer(grpcSrv, grpcserver.NewLedgerServer(ledgerService))
 
-        // Register reflection service
         reflection.Register(grpcSrv)
 
-        // Set health status to serving
         healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
         g, gctx := errgroup.WithContext(ctx)
@@ -194,18 +192,23 @@ func main() <span class="cov0" title="0">{
 import (
         "context"
         "os"
+        "strconv"
 
         "github.com/redis/go-redis/v9"
 )
 
 func Connect() (*redis.Client, error) <span class="cov0" title="0">{
-        client := redis.NewClient(&amp;redis.Options{
+        db, err := strconv.Atoi(os.Getenv("REDIS_DB"))
+        if err != nil </span><span class="cov0" title="0">{
+                db = 0
+        }</span>
+        <span class="cov0" title="0">client := redis.NewClient(&amp;redis.Options{
                 Addr:     os.Getenv("REDIS_ADDR"),
                 Password: os.Getenv("REDIS_PASSWORD"),
-                DB:       0,
+                DB:       db,
         })
         context := context.Background()
-        _, err := client.Ping(context).Result()
+        _, err = client.Ping(context).Result()
         if err != nil </span><span class="cov0" title="0">{
                 println(err.Error())
                 return nil, err
@@ -1724,25 +1727,45 @@ var LedgerService_ServiceDesc = grpc.ServiceDesc{
 import (
         "context"
         "database/sql"
+        "encoding/json"
         "ledger/internal/domain"
+        "time"
+
+        "github.com/redis/go-redis/v9"
 )
 
 type BudgetPgRepository struct {
-        db *sql.DB
+        db    *sql.DB
+        cache *redis.Client
 }
 
-func NewBudgetPgRepository(db *sql.DB) *BudgetPgRepository <span class="cov8" title="1">{
+func NewBudgetPgRepository(db *sql.DB, cache *redis.Client) *BudgetPgRepository <span class="cov8" title="1">{
         return &amp;BudgetPgRepository{
-                db: db,
+                db:    db,
+                cache: cache,
         }
 }</span>
 
 func (r *BudgetPgRepository) SetBudget(b *domain.Budget, ctx context.Context) error <span class="cov8" title="1">{
         _, err := r.db.ExecContext(ctx, "INSERT INTO budgets(category, limit_amount) VALUES($1,$2) ON CONFLICT(category) DO UPDATE SET limit_amount =EXCLUDED.limit_amount", &amp;b.Category, &amp;b.Limit)
-        return err
-}</span>
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+        <span class="cov8" title="1">r.cache.Del(ctx, "budgets:all")
+        return nil</span>
+}
 
 func (r *BudgetPgRepository) GetBudgets(ctx context.Context) ([]domain.Budget, error) <span class="cov8" title="1">{
+        key := "budgets:all"
+        val, err := r.cache.Get(ctx, key).Result()
+        if err == nil </span><span class="cov8" title="1">{
+                println("Get budgets from cache")
+                var result []domain.Budget
+                if err := json.Unmarshal([]byte(val), &amp;result); err == nil </span><span class="cov8" title="1">{
+                        return result, nil
+                }</span>
+        }
+        <span class="cov8" title="1">println("Get budgets from db")
         rows, err := r.db.QueryContext(ctx, "SELECT category, limit_amount FROM budgets ORDER BY category")
         if err != nil </span><span class="cov8" title="1">{
                 return nil, err
@@ -1764,7 +1787,9 @@ func (r *BudgetPgRepository) GetBudgets(ctx context.Context) ([]domain.Budget, e
         <span class="cov8" title="1">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
                 return dbBudgets, err
         }</span>
-        <span class="cov8" title="1">return dbBudgets, nil</span>
+        <span class="cov8" title="1">data, _ := json.Marshal(dbBudgets)
+        r.cache.Set(ctx, key, data, 20*time.Second)
+        return dbBudgets, nil</span>
 }
 
 func (r *BudgetPgRepository) GetBudget(category string, ctx context.Context) (*domain.Budget, error) <span class="cov8" title="1">{

@@ -104,7 +104,7 @@ func TestTransactionPgRepository_GetAmountTransactionByCategoryAndMonth(t *testi
 			mockSetup: func() {
 				rows := sqlmock.NewRows([]string{"coalesce"}).AddRow(200.75)
 				mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\),0\) FROM expenses WHERE category=\$1 AND date between \$2 and \$3`).
-					WithArgs("Food", "2025-12-01", "2024-01-01").
+					WithArgs("Food", "2025-12-01", "2026-01-01").
 					WillReturnRows(rows)
 			},
 			expected:    200.75,
@@ -124,7 +124,7 @@ func TestTransactionPgRepository_GetAmountTransactionByCategoryAndMonth(t *testi
 			date:     "2025-12-15",
 			mockSetup: func() {
 				mock.ExpectQuery(`SELECT COALESCE\(SUM\(amount\),0\) FROM expenses WHERE category=\$1 AND date between \$2 and \$3`).
-					WithArgs("Food", "2025-12-01", "2024-01-01").
+					WithArgs("Food", "2025-12-01", "2026-01-01").
 					WillReturnError(sql.ErrConnDone)
 			},
 			expected:    0,

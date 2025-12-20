@@ -1,3 +1,5 @@
 DATABASE_URL: postgres://postgres:password@postgres-ledger:5432/ledger?sslmode=disable
 REDIS_ADDR: redis:6379
+REDIS_PASSWORD: password
+REDIS_DB: 0
 GRPC_PORT: 50051

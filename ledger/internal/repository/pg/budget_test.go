@@ -8,6 +8,8 @@ import (
 	"ledger/internal/domain"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +19,16 @@ func TestBudgetPgRepository_SetBudget(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewBudgetPgRepository(db)
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer redisClient.Close()
+
+	repo := NewBudgetPgRepository(db, redisClient)
 	ctx := context.Background()
 	budget := &domain.Budget{
 		Category: "Food",
@@ -54,6 +65,8 @@ func TestBudgetPgRepository_SetBudget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mr.FlushAll()
+
 			tt.mockSetup()
 
 			err := repo.SetBudget(tt.budget, ctx)
@@ -73,7 +86,16 @@ func TestBudgetPgRepository_GetBudgets(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewBudgetPgRepository(db)
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer redisClient.Close()
+
+	repo := NewBudgetPgRepository(db, redisClient)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -83,7 +105,18 @@ func TestBudgetPgRepository_GetBudgets(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			name: "successful get budgets",
+			name: "cache hit",
+			mockSetup: func() {
+				mr.Set("budgets:all", `[{"category":"Food","limit":1000},{"category":"Transport","limit":500}]`)
+			},
+			expected: []domain.Budget{
+				{Category: "Food", Limit: 1000.0},
+				{Category: "Transport", Limit: 500.0},
+			},
+			expectedErr: false,
+		},
+		{
+			name: "successful get budgets from db",
 			mockSetup: func() {
 				rows := sqlmock.NewRows([]string{"category", "limit_amount"}).
 					AddRow("Food", 1000.0).
@@ -120,6 +153,8 @@ func TestBudgetPgRepository_GetBudgets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mr.FlushAll()
+
 			tt.mockSetup()
 
 			result, err := repo.GetBudgets(ctx)
@@ -130,7 +165,10 @@ func TestBudgetPgRepository_GetBudgets(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
-			assert.NoError(t, mock.ExpectationsWereMet())
+
+			if tt.name != "cache hit" {
+				assert.NoError(t, mock.ExpectationsWereMet())
+			}
 		})
 	}
 }
@@ -140,7 +178,16 @@ func TestBudgetPgRepository_GetBudget(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := NewBudgetPgRepository(db)
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+	defer redisClient.Close()
+
+	repo := NewBudgetPgRepository(db, redisClient)
 	ctx := context.Background()
 
 	tests := []struct {

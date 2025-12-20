@@ -62,7 +62,7 @@ func main() {
 	defer redisConn.Close()
 
 	ledgerService := service.NewLedgerService(
-		pg.NewBudgetPgRepository(dbConn),
+		pg.NewBudgetPgRepository(dbConn, redisConn),
 		pg.NewTransactionPgRepository(dbConn),
 		pg.NewSummaryPgRepository(dbConn, redisConn),
 	)
