@@ -71,7 +71,7 @@
 				
 				<option value="file7">gateway/internal/server/httpserver/server.go (0.0%)</option>
 				
-				<option value="file8">gateway/internal/service/ledger_service.go (0.0%)</option>
+				<option value="file8">gateway/internal/service/ledger_service.go (93.5%)</option>
 				
 				</select>
 			</div>
@@ -2367,14 +2367,14 @@ type ledgerGatewayService struct {
         client ledgerv1.LedgerServiceClient
 }
 
-func NewLedgerGatewayService(client ledgerv1.LedgerServiceClient) LedgerGatewayService <span class="cov0" title="0">{
+func NewLedgerGatewayService(client ledgerv1.LedgerServiceClient) LedgerGatewayService <span class="cov8" title="1">{
         if client == nil </span><span class="cov0" title="0">{
                 panic("budget gateway service requires gRPC client")</span>
         }
-        <span class="cov0" title="0">return &amp;ledgerGatewayService{client: client}</span>
+        <span class="cov8" title="1">return &amp;ledgerGatewayService{client: client}</span>
 }
 
-func (l *ledgerGatewayService) BudgetAdd(ctx context.Context, req model.BudgetAdd) error <span class="cov0" title="0">{
+func (l *ledgerGatewayService) BudgetAdd(ctx context.Context, req model.BudgetAdd) error <span class="cov8" title="1">{
         _, err := l.client.BudgetAdd(ctx, &amp;ledgerv1.BudgetAddRequest{
                 Category: req.Category,
                 Limit:    float32(req.Limit),
@@ -2382,60 +2382,60 @@ func (l *ledgerGatewayService) BudgetAdd(ctx context.Context, req model.BudgetAd
         return err
 }</span>
 
-func (l *ledgerGatewayService) BudgetGet(ctx context.Context, req model.BudgetGet) (*model.BudgetGetResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) BudgetGet(ctx context.Context, req model.BudgetGet) (*model.BudgetGetResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.BudgetGet(ctx, &amp;ledgerv1.BudgetGetRequest{
                 Category: req.Category,
         })
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;model.BudgetGetResponse{
+        <span class="cov8" title="1">return &amp;model.BudgetGetResponse{
                 Category: resp.Category,
                 Limit:    float64(resp.Limit),
         }, nil</span>
 }
 
-func (l *ledgerGatewayService) BudgetList(ctx context.Context) ([]model.BudgetGetResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) BudgetList(ctx context.Context) ([]model.BudgetGetResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.BudgetsList(ctx, nil)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">out := make([]model.BudgetGetResponse, 0, len(resp.GetBudgets()))
-        for _, r := range resp.GetBudgets() </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">out := make([]model.BudgetGetResponse, 0, len(resp.GetBudgets()))
+        for _, r := range resp.GetBudgets() </span><span class="cov8" title="1">{
                 if r == nil </span><span class="cov0" title="0">{
                         continue</span>
                 }
-                <span class="cov0" title="0">out = append(out, model.BudgetGetResponse{
+                <span class="cov8" title="1">out = append(out, model.BudgetGetResponse{
                         Category: r.Category,
                         Limit:    float64(r.Limit),
                 })</span>
         }
-        <span class="cov0" title="0">return out, nil</span>
+        <span class="cov8" title="1">return out, nil</span>
 }
 
-func (l *ledgerGatewayService) TransactionAdd(ctx context.Context, req model.TrasnactionAdd) (*model.TransactionAddResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) TransactionAdd(ctx context.Context, req model.TrasnactionAdd) (*model.TransactionAddResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.TransactionAdd(ctx, &amp;ledgerv1.TransactionAddRequest{
                 Amount:      float32(req.Amount),
                 Category:    req.Category,
                 Description: req.Description,
                 Date:        req.Date,
         })
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;model.TransactionAddResponse{
+        <span class="cov8" title="1">return &amp;model.TransactionAddResponse{
                 Id: resp.GetId(),
         }, nil</span>
 }
 
-func (l *ledgerGatewayService) TransactionGet(ctx context.Context, req model.TransactionGet) (*model.TransactionGetResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) TransactionGet(ctx context.Context, req model.TransactionGet) (*model.TransactionGetResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.TransactionGet(ctx, &amp;ledgerv1.TransactionGetRequest{
                 Id: req.Id,
         })
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;model.TransactionGetResponse{
+        <span class="cov8" title="1">return &amp;model.TransactionGetResponse{
                 Id:          resp.GetId(),
                 Amount:      float64(resp.GetAmount()),
                 Category:    resp.GetCategory(),
@@ -2444,17 +2444,17 @@ func (l *ledgerGatewayService) TransactionGet(ctx context.Context, req model.Tra
         }, nil</span>
 }
 
-func (l *ledgerGatewayService) TransactionList(ctx context.Context) ([]model.TransactionGetResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) TransactionList(ctx context.Context) ([]model.TransactionGetResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.TransactionList(ctx, nil)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">out := make([]model.TransactionGetResponse, 0, len(resp.GetTransactions()))
-        for _, tr := range resp.GetTransactions() </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">out := make([]model.TransactionGetResponse, 0, len(resp.GetTransactions()))
+        for _, tr := range resp.GetTransactions() </span><span class="cov8" title="1">{
                 if tr == nil </span><span class="cov0" title="0">{
                         continue</span>
                 }
-                <span class="cov0" title="0">out = append(out, model.TransactionGetResponse{
+                <span class="cov8" title="1">out = append(out, model.TransactionGetResponse{
                         Id:          tr.GetId(),
                         Amount:      float64(tr.GetAmount()),
                         Category:    tr.GetCategory(),
@@ -2462,20 +2462,20 @@ func (l *ledgerGatewayService) TransactionList(ctx context.Context) ([]model.Tra
                         Date:        tr.GetDate(),
                 })</span>
         }
-        <span class="cov0" title="0">return out, nil</span>
+        <span class="cov8" title="1">return out, nil</span>
 }
 
-func (l *ledgerGatewayService) ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) ReportSummary(ctx context.Context, req model.ReportSummary) (*model.ReportSummaryResponse, error) <span class="cov8" title="1">{
         resp, err := l.client.ReportSummary(ctx, &amp;ledgerv1.SummaryRequest{From: req.From, To: req.To})
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;model.ReportSummaryResponse{Report: resp.Report, CacheResult: resp.CacheResult}, nil</span>
+        <span class="cov8" title="1">return &amp;model.ReportSummaryResponse{Report: resp.Report, CacheResult: resp.CacheResult}, nil</span>
 }
 
-func (l *ledgerGatewayService) TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error) <span class="cov0" title="0">{
+func (l *ledgerGatewayService) TransactionBulkAdd(ctx context.Context, req model.TransactionBulkAdd) (*model.TransactionBulkAddResponse, error) <span class="cov8" title="1">{
         trs := make([]*ledgerv1.TransactionAddRequest, 0, len(req.Transactions))
-        for _, transaction := range req.Transactions </span><span class="cov0" title="0">{
+        for _, transaction := range req.Transactions </span><span class="cov8" title="1">{
                 trs = append(trs, &amp;ledgerv1.TransactionAddRequest{
                         Amount:      float32(transaction.Amount),
                         Category:    transaction.Category,
@@ -2483,11 +2483,11 @@ func (l *ledgerGatewayService) TransactionBulkAdd(ctx context.Context, req model
                         Description: transaction.Description,
                 })
         }</span>
-        <span class="cov0" title="0">resp, err := l.client.BulkAddTransactions(ctx, &amp;ledgerv1.TransactionBulkAddRequest{Transactions: trs})
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">resp, err := l.client.BulkAddTransactions(ctx, &amp;ledgerv1.TransactionBulkAddRequest{Transactions: trs})
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;model.TransactionBulkAddResponse{
+        <span class="cov8" title="1">return &amp;model.TransactionBulkAddResponse{
                 Accepted: resp.Accepted,
                 Rejected: resp.Rejected,
                 Errors:   resp.Errors,

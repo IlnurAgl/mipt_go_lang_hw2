@@ -71,13 +71,13 @@
 				
 				<option value="file7">ledger/internal/pb/ledger/v1/ledger_grpc.pb.go (0.0%)</option>
 				
-				<option value="file8">ledger/internal/repository/pg/budget.go (0.0%)</option>
+				<option value="file8">ledger/internal/repository/pg/budget.go (87.5%)</option>
 				
-				<option value="file9">ledger/internal/repository/pg/summary.go (0.0%)</option>
+				<option value="file9">ledger/internal/repository/pg/summary.go (72.9%)</option>
 				
-				<option value="file10">ledger/internal/repository/pg/transaction.go (0.0%)</option>
+				<option value="file10">ledger/internal/repository/pg/transaction.go (86.7%)</option>
 				
-				<option value="file11">ledger/internal/service/service.go (0.0%)</option>
+				<option value="file11">ledger/internal/service/service.go (41.8%)</option>
 				
 				</select>
 			</div>
@@ -1731,49 +1731,49 @@ type BudgetPgRepository struct {
         db *sql.DB
 }
 
-func NewBudgetPgRepository(db *sql.DB) *BudgetPgRepository <span class="cov0" title="0">{
+func NewBudgetPgRepository(db *sql.DB) *BudgetPgRepository <span class="cov8" title="1">{
         return &amp;BudgetPgRepository{
                 db: db,
         }
 }</span>
 
-func (r *BudgetPgRepository) SetBudget(b *domain.Budget, ctx context.Context) error <span class="cov0" title="0">{
+func (r *BudgetPgRepository) SetBudget(b *domain.Budget, ctx context.Context) error <span class="cov8" title="1">{
         _, err := r.db.ExecContext(ctx, "INSERT INTO budgets(category, limit_amount) VALUES($1,$2) ON CONFLICT(category) DO UPDATE SET limit_amount =EXCLUDED.limit_amount", &amp;b.Category, &amp;b.Limit)
         return err
 }</span>
 
-func (r *BudgetPgRepository) GetBudgets(ctx context.Context) ([]domain.Budget, error) <span class="cov0" title="0">{
+func (r *BudgetPgRepository) GetBudgets(ctx context.Context) ([]domain.Budget, error) <span class="cov8" title="1">{
         rows, err := r.db.QueryContext(ctx, "SELECT category, limit_amount FROM budgets ORDER BY category")
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">defer func(rows *sql.Rows) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">defer func(rows *sql.Rows) </span><span class="cov8" title="1">{
                 err := rows.Close()
                 if err != nil </span><span class="cov0" title="0">{
                         println(err.Error())
                 }</span>
         }(rows)
-        <span class="cov0" title="0">var dbBudgets []domain.Budget
-        for rows.Next() </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">var dbBudgets []domain.Budget
+        for rows.Next() </span><span class="cov8" title="1">{
                 var b domain.Budget
                 if err := rows.Scan(&amp;b.Category, &amp;b.Limit); err != nil </span><span class="cov0" title="0">{
                         return dbBudgets, err
                 }</span>
-                <span class="cov0" title="0">dbBudgets = append(dbBudgets, b)</span>
+                <span class="cov8" title="1">dbBudgets = append(dbBudgets, b)</span>
         }
-        <span class="cov0" title="0">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
                 return dbBudgets, err
         }</span>
-        <span class="cov0" title="0">return dbBudgets, nil</span>
+        <span class="cov8" title="1">return dbBudgets, nil</span>
 }
 
-func (r *BudgetPgRepository) GetBudget(category string, ctx context.Context) (*domain.Budget, error) <span class="cov0" title="0">{
+func (r *BudgetPgRepository) GetBudget(category string, ctx context.Context) (*domain.Budget, error) <span class="cov8" title="1">{
         var budget domain.Budget
         err := r.db.QueryRowContext(ctx, "SELECT category, limit_amount FROM budgets WHERE category = $1", category).Scan(&amp;budget.Category, &amp;budget.Limit)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return &amp;budget, err
         }</span>
-        <span class="cov0" title="0">return &amp;budget, nil</span>
+        <span class="cov8" title="1">return &amp;budget, nil</span>
 }
 </pre>
 		
@@ -1796,35 +1796,35 @@ type SummaryPgRepository struct {
         cache *redis.Client
 }
 
-func NewSummaryPgRepository(db *sql.DB, cache *redis.Client) *SummaryPgRepository <span class="cov0" title="0">{
+func NewSummaryPgRepository(db *sql.DB, cache *redis.Client) *SummaryPgRepository <span class="cov8" title="1">{
         return &amp;SummaryPgRepository{
                 db:    db,
                 cache: cache,
         }
 }</span>
 
-func (r *SummaryPgRepository) GetSummary(ctx context.Context, from string, to string) (*domain.Summary, error) <span class="cov0" title="0">{
+func (r *SummaryPgRepository) GetSummary(ctx context.Context, from string, to string) (*domain.Summary, error) <span class="cov8" title="1">{
         key := "report:summary:" + from + ":" + to
         val, err := r.cache.Get(ctx, key).Result()
-        if err == nil </span><span class="cov0" title="0">{
+        if err == nil </span><span class="cov8" title="1">{
                 println("Get result from cache")
                 var result map[string]float64
-                if err := json.Unmarshal([]byte(val), &amp;result); err == nil </span><span class="cov0" title="0">{
+                if err := json.Unmarshal([]byte(val), &amp;result); err == nil </span><span class="cov8" title="1">{
                         return &amp;domain.Summary{Categories: result, CacheResult: true}, nil
                 }</span>
         }
-        <span class="cov0" title="0">println("Get result from db")
+        <span class="cov8" title="1">println("Get result from db")
         rows, err := r.db.QueryContext(ctx, "SELECT distinct category FROM expenses WHERE date BETWEEN $1 AND $2", from, to)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">defer func(rows *sql.Rows) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">defer func(rows *sql.Rows) </span><span class="cov8" title="1">{
                 err := rows.Close()
                 if err != nil </span><span class="cov0" title="0">{
                         println(err.Error())
                 }</span>
         }(rows)
-        <span class="cov0" title="0">var categories []string
+        <span class="cov8" title="1">var categories []string
         for rows.Next() </span><span class="cov0" title="0">{
                 var c string
                 if err := rows.Scan(&amp;c); err != nil </span><span class="cov0" title="0">{
@@ -1833,20 +1833,20 @@ func (r *SummaryPgRepository) GetSummary(ctx context.Context, from string, to st
                 }</span>
                 <span class="cov0" title="0">categories = append(categories, c)</span>
         }
-        <span class="cov0" title="0">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
                 println(err.Error())
                 return nil, err
         }</span>
-        <span class="cov0" title="0">var wg sync.WaitGroup
+        <span class="cov8" title="1">var wg sync.WaitGroup
         result := make(map[string]float64)
         ticker := time.NewTicker(500 * time.Millisecond)
         defer ticker.Stop()
         done := make(chan bool)
 
-        go func() </span><span class="cov0" title="0">{
-                for </span><span class="cov0" title="0">{
+        go func() </span><span class="cov8" title="1">{
+                for </span><span class="cov8" title="1">{
                         select </span>{
-                        case &lt;-done:<span class="cov0" title="0">
+                        case &lt;-done:<span class="cov8" title="1">
                                 fmt.Println("Ticker stopped")
                                 return</span>
                         case t := &lt;-ticker.C:<span class="cov0" title="0">
@@ -1854,14 +1854,14 @@ func (r *SummaryPgRepository) GetSummary(ctx context.Context, from string, to st
                         }
                 }
         }()
-        <span class="cov0" title="0">for _, category := range categories </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">for _, category := range categories </span><span class="cov0" title="0">{
                 wg.Go(func() </span><span class="cov0" title="0">{
                         var amount float64
                         r.db.QueryRowContext(ctx, "SELECT sum(amount) FROM expenses WHERE category = $1 AND date BETWEEN $2 AND $3", category, from, to).Scan(&amp;amount)
                         result[category] = amount
                 }</span>)
         }
-        <span class="cov0" title="0">wg.Wait()
+        <span class="cov8" title="1">wg.Wait()
         done &lt;- true
         data, _ := json.Marshal(result)
         print("save result to cache")
@@ -1885,27 +1885,27 @@ type TransactionPgRepository struct {
         db *sql.DB
 }
 
-func NewTransactionPgRepository(db *sql.DB) *TransactionPgRepository <span class="cov0" title="0">{
+func NewTransactionPgRepository(db *sql.DB) *TransactionPgRepository <span class="cov8" title="1">{
         return &amp;TransactionPgRepository{
                 db: db,
         }
 }</span>
 
-func (r *TransactionPgRepository) GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error) <span class="cov0" title="0">{
+func (r *TransactionPgRepository) GetAmountTransactionByCategory(category string, ctx context.Context) (float64, error) <span class="cov8" title="1">{
         var totalAmount float64
         err := r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1", category).Scan(&amp;totalAmount)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">return totalAmount, nil</span>
+        <span class="cov8" title="1">return totalAmount, nil</span>
 }
 
-func (r *TransactionPgRepository) GetAmountTransactionByCategoryAndMonth(ctx context.Context, category string, date string) (float64, error) <span class="cov0" title="0">{
+func (r *TransactionPgRepository) GetAmountTransactionByCategoryAndMonth(ctx context.Context, category string, date string) (float64, error) <span class="cov8" title="1">{
         t, err := time.Parse("2006-01-02", date)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">year := t.Year()
+        <span class="cov8" title="1">year := t.Year()
         month := int(t.Month())
         var currentMonthStart strings.Builder
         currentMonthStart.WriteString(strconv.Itoa(year))
@@ -1914,7 +1914,7 @@ func (r *TransactionPgRepository) GetAmountTransactionByCategoryAndMonth(ctx con
         currentMonthStart.WriteString("-")
         currentMonthStart.WriteString("01")
         var nextMonthStart strings.Builder
-        if month == 12 </span><span class="cov0" title="0">{
+        if month == 12 </span><span class="cov8" title="1">{
                 nextMonthStart.WriteString(strconv.Itoa(year + 1))
                 nextMonthStart.WriteString("-")
                 nextMonthStart.WriteString("01")
@@ -1928,55 +1928,55 @@ func (r *TransactionPgRepository) GetAmountTransactionByCategoryAndMonth(ctx con
                 nextMonthStart.WriteString("01")
         }</span>
 
-        <span class="cov0" title="0">var totalAmount float64
+        <span class="cov8" title="1">var totalAmount float64
         err = r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(amount),0) FROM expenses WHERE category=$1 AND date between $2 and $3", category, currentMonthStart.String(), nextMonthStart.String()).Scan(&amp;totalAmount)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">return totalAmount, nil</span>
+        <span class="cov8" title="1">return totalAmount, nil</span>
 }
 
-func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction, ctx context.Context) (int64, error) <span class="cov0" title="0">{
+func (r *TransactionPgRepository) AddTransaction(transaction *domain.Transaction, ctx context.Context) (int64, error) <span class="cov8" title="1">{
         var newID int64
         err := r.db.QueryRowContext(ctx, "INSERT INTO expenses(amount, category, description, date) VALUES($1,$2,$3,$4) RETURNING id", transaction.Amount, transaction.Category, transaction.Description, transaction.Date).Scan(&amp;newID)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">return newID, nil</span>
+        <span class="cov8" title="1">return newID, nil</span>
 }
 
-func (r *TransactionPgRepository) GetTransaction(id int64, ctx context.Context) (*domain.Transaction, error) <span class="cov0" title="0">{
+func (r *TransactionPgRepository) GetTransaction(id int64, ctx context.Context) (*domain.Transaction, error) <span class="cov8" title="1">{
         var tr domain.Transaction
         err := r.db.QueryRowContext(ctx, "SELECT id, amount, category, description, date FROM expenses where id=$1", id).Scan(&amp;tr.ID, &amp;tr.Amount, &amp;tr.Category, &amp;tr.Description, &amp;tr.Date)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return &amp;tr, nil</span>
+        <span class="cov8" title="1">return &amp;tr, nil</span>
 }
 
-func (r *TransactionPgRepository) ListTransactions(ctx context.Context) ([]domain.Transaction, error) <span class="cov0" title="0">{
+func (r *TransactionPgRepository) ListTransactions(ctx context.Context) ([]domain.Transaction, error) <span class="cov8" title="1">{
         rows, err := r.db.QueryContext(ctx, "SELECT id, amount, category, description, date FROM expenses ORDER BY date DESC, id DESC")
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">defer func(rows *sql.Rows) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">defer func(rows *sql.Rows) </span><span class="cov8" title="1">{
                 err := rows.Close()
                 if err != nil </span><span class="cov0" title="0">{
                         println(err.Error())
                 }</span>
         }(rows)
-        <span class="cov0" title="0">var dbTransactions []domain.Transaction
-        for rows.Next() </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">var dbTransactions []domain.Transaction
+        for rows.Next() </span><span class="cov8" title="1">{
                 var t domain.Transaction
                 if err := rows.Scan(&amp;t.ID, &amp;t.Amount, &amp;t.Category, &amp;t.Description, &amp;t.Date); err != nil </span><span class="cov0" title="0">{
                         return dbTransactions, err
                 }</span>
-                <span class="cov0" title="0">dbTransactions = append(dbTransactions, t)</span>
+                <span class="cov8" title="1">dbTransactions = append(dbTransactions, t)</span>
         }
-        <span class="cov0" title="0">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if err = rows.Err(); err != nil </span><span class="cov0" title="0">{
                 return dbTransactions, err
         }</span>
-        <span class="cov0" title="0">return dbTransactions, nil</span>
+        <span class="cov8" title="1">return dbTransactions, nil</span>
 }
 </pre>
 		
@@ -2009,7 +2009,7 @@ type LedgerServiceImpl struct {
 
 var _ LedgerService = (*LedgerServiceImpl)(nil)
 
-func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepository domain.TransactionRepository, summaryRepository domain.SummaryRepository) *LedgerServiceImpl <span class="cov0" title="0">{
+func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepository domain.TransactionRepository, summaryRepository domain.SummaryRepository) *LedgerServiceImpl <span class="cov8" title="1">{
         return &amp;LedgerServiceImpl{
                 budgetRepository:      budgetRepository,
                 transactionRepository: transactionsRepository,
@@ -2017,78 +2017,78 @@ func NewLedgerService(budgetRepository domain.BudgetRepository, transactionsRepo
         }
 }</span>
 
-func (l *LedgerServiceImpl) BudgetAdd(ctx context.Context, budget *domain.Budget) error <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) BudgetAdd(ctx context.Context, budget *domain.Budget) error <span class="cov8" title="1">{
         err := budget.Validate()
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return err
         }</span>
-        <span class="cov0" title="0">err = l.budgetRepository.SetBudget(budget, ctx)
-        if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">err = l.budgetRepository.SetBudget(budget, ctx)
+        if err != nil </span><span class="cov8" title="1">{
                 return err
         }</span>
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
-func (l *LedgerServiceImpl) BudgetGet(ctx context.Context, category string) (*domain.Budget, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) BudgetGet(ctx context.Context, category string) (*domain.Budget, error) <span class="cov8" title="1">{
         budget, err := l.budgetRepository.GetBudget(category, ctx)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return budget, nil</span>
+        <span class="cov8" title="1">return budget, nil</span>
 }
 
-func (l *LedgerServiceImpl) BudgetsList(ctx context.Context) (map[string]domain.Budget, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) BudgetsList(ctx context.Context) (map[string]domain.Budget, error) <span class="cov8" title="1">{
         budgets, err := l.budgetRepository.GetBudgets(ctx)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">budgetMap := make(map[string]domain.Budget)
-        for _, budget := range budgets </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">budgetMap := make(map[string]domain.Budget)
+        for _, budget := range budgets </span><span class="cov8" title="1">{
                 budgetMap[budget.Category] = budget
         }</span>
-        <span class="cov0" title="0">return budgetMap, nil</span>
+        <span class="cov8" title="1">return budgetMap, nil</span>
 }
 
-func (l *LedgerServiceImpl) TransactionAdd(ctx context.Context, transaction *domain.Transaction) (int64, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) TransactionAdd(ctx context.Context, transaction *domain.Transaction) (int64, error) <span class="cov8" title="1">{
         err := transaction.Validate()
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return 0, errors.New("invalid transaction")
         }</span>
-        <span class="cov0" title="0">budget, err := l.budgetRepository.GetBudget(transaction.Category, ctx)
+        <span class="cov8" title="1">budget, err := l.budgetRepository.GetBudget(transaction.Category, ctx)
+        if err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+        <span class="cov8" title="1">amount, err := l.transactionRepository.GetAmountTransactionByCategoryAndMonth(ctx, transaction.Category, transaction.Date)
         if err != nil </span><span class="cov0" title="0">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">amount, err := l.transactionRepository.GetAmountTransactionByCategoryAndMonth(ctx, transaction.Category, transaction.Date)
-        if err != nil </span><span class="cov0" title="0">{
-                return 0, err
-        }</span>
-        <span class="cov0" title="0">if amount+transaction.Amount &gt; budget.Limit </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if amount+transaction.Amount &gt; budget.Limit </span><span class="cov8" title="1">{
                 return 0, errors.New("budget exceeded")
         }</span>
-        <span class="cov0" title="0">id, err := l.transactionRepository.AddTransaction(transaction, ctx)
+        <span class="cov8" title="1">id, err := l.transactionRepository.AddTransaction(transaction, ctx)
         if err != nil </span><span class="cov0" title="0">{
                 return 0, err
         }</span>
-        <span class="cov0" title="0">return id, nil</span>
+        <span class="cov8" title="1">return id, nil</span>
 }
 
-func (l *LedgerServiceImpl) TransactionGet(ctx context.Context, id int64) (*domain.Transaction, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) TransactionGet(ctx context.Context, id int64) (*domain.Transaction, error) <span class="cov8" title="1">{
         transaction, err := l.transactionRepository.GetTransaction(id, ctx)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return transaction, err</span>
+        <span class="cov8" title="1">return transaction, err</span>
 }
 
-func (l *LedgerServiceImpl) TransactionsList(ctx context.Context) ([]domain.Transaction, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) TransactionsList(ctx context.Context) ([]domain.Transaction, error) <span class="cov8" title="1">{
         transactions, err := l.transactionRepository.ListTransactions(ctx)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">return transactions, nil</span>
+        <span class="cov8" title="1">return transactions, nil</span>
 }
 
-func (l *LedgerServiceImpl) GetReportSummary(ctx context.Context, from string, to string) (*domain.Summary, error) <span class="cov0" title="0">{
+func (l *LedgerServiceImpl) GetReportSummary(ctx context.Context, from string, to string) (*domain.Summary, error) <span class="cov8" title="1">{
         return l.summaryRepository.GetSummary(ctx, from, to)
 }</span>
 

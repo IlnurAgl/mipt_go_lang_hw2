@@ -71,3 +71,9 @@ curl -X POST "127.0.0.1:8080/api/transactions/bulk" -H "Authorization: Bearer ey
 curl -X GET "127.0.0.1:8080/api/reports/summary?from=2025-01-01&to=2025-12-31" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOThhYzJmZmUtNTc0OS00YWRlLTkwNTMtNmE3NTU1ZDJiZjA0IiwiZXhwIjoxNzY2MzQ1NTkwLCJpYXQiOjE3NjYyNTkxOTB9.HuEGJC4maaSVSNZwwFOksYHKo6B-THgAQoH-S8fItQk" 
 {"report":{"test":1,"test2":1},"cache_result":false}%  
 ```
+
+### Тесты
+```
+cd ledger && go test ./... -cover -coverprofile=cover.out && go tool cover -html=cover.out -o cover.html
+cd gateway && go test ./... -cover -coverprofile=cover.out && go tool cover -html=cover.out -o cover.html
+```

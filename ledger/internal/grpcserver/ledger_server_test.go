@@ -246,7 +246,6 @@ func TestLedgerServer_BudgetsList(t *testing.T) {
 				assert.Nil(t, resp)
 			} else {
 				assert.NoError(t, err)
-				// Since map order is not guaranteed, check the contents
 				assert.Len(t, resp.Budgets, len(tt.expectedResp.Budgets))
 				for _, expected := range tt.expectedResp.Budgets {
 					found := false

@@ -42,7 +42,6 @@ func main() {
 
 	grpcSrv := grpc.NewServer()
 
-	// Register health service
 	healthSrv := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(grpcSrv, healthSrv)
 
@@ -62,10 +61,8 @@ func main() {
 
 	pb.RegisterAuthServiceServer(grpcSrv, authServer)
 
-	// Register reflection service
 	reflection.Register(grpcSrv)
 
-	// Set health status to serving
 	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	g, gctx := errgroup.WithContext(context.Background())

@@ -37,7 +37,6 @@ func (s *AuthService) Login(login, password string) (string, error) {
 		return "", errors.New("invalid credentials")
 	}
 
-	// Create JWT token
 	claims := Claims{
 		UserID: user.ID,
 		RegisteredClaims: jwt.RegisteredClaims{

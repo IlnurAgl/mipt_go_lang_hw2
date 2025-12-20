@@ -165,7 +165,6 @@ func (l *LedgerHandler) TransactionExportCSV(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename=transactions.csv")
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
-	// Write header
 	if err := writer.Write([]string{"ID", "Amount", "Category", "Description", "Date"}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write CSV"})
 		return
